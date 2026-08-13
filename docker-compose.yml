@@ -2,7 +2,7 @@
 # AI Project Management SaaS — Docker Compose baseline (Story 1.2)
 # =============================================================================
 # Local stack: postgres 16, redis 7, backend :4000, frontend :3000.
-# App containers run Node placeholder listeners until Stories 1.3 / 1.4.
+# Backend: Express API (Story 1.3). Frontend remains a placeholder until Story 1.4.
 # =============================================================================
 
 services:
@@ -44,6 +44,7 @@ services:
       PORT: '4000'
       DATABASE_URL: postgresql://apm:apm@postgres:5432/apm
       REDIS_URL: redis://redis:6379
+      CORS_ORIGIN: http://localhost:3000
     depends_on:
       postgres:
         condition: service_healthy

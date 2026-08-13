@@ -1,0 +1,13 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Story 1.3: generate-only stub so Prisma Client can be produced.
+// Product models belong to Story 2.1. Health uses $queryRaw SELECT 1.
+model SchemaBootstrap {
+  id String @id @default("bootstrap")
+}
