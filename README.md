@@ -87,8 +87,6 @@ docker compose up -d --build
 | `postgres` | PostgreSQL 16                             | 5432 |
 | `redis`    | Redis 7                                   | 6379 |
 
-Compose currently **inlines** `DATABASE_URL`, `REDIS_URL`, and `CORS_ORIGIN` for the backend service (no `env_file` yet). `.env.example` remains the contract for local/non-Compose runs and upcoming auth/AI vars.
-
 ### 4. Verify health
 
 With the stack up:
@@ -177,7 +175,7 @@ ai-project-management-saas/
 ├── frontend/                 # Next.js app shell (own package.json + Dockerfile stub)
 ├── backend/                  # Express API (own package.json + multi-stage Dockerfile)
 ├── docs/                     # Public documentation (populated later)
-├── scripts/                  # Helper scripts
+├── scripts/                  # Reserved (placeholder `.gitkeep` only for now)
 ├── tests/                    # Cross-cutting / E2E test home (populated later)
 ├── package.json              # Root convenience scripts (no workspaces)
 ├── tsconfig.base.json        # Shared strict TypeScript base
@@ -272,7 +270,7 @@ All AI calls are **backend-only**, project-authorized, and rate-limited. Suggest
 
 | Epic   | Focus                                                                                          | Status        |
 | ------ | ---------------------------------------------------------------------------------------------- | ------------- |
-| **1**  | Platform foundation & app shell (tooling, Compose, API skeleton, Next shell, README bootstrap) | Complete      |
+| **1**  | Platform foundation & app shell (tooling, Compose, API skeleton, Next shell, README bootstrap) | Foundation delivered (sprint tracking still in review) |
 | **2**  | Authentication & secure sessions                                                               | Planned       |
 | **3**  | Organizations & RBAC                                                                           | Planned       |
 | **4**  | Projects & members                                                                             | Planned       |
