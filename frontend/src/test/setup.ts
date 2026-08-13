@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 
 import { vi } from 'vitest';
 
-import { mockPathname } from '@/test/navigation-mock';
+import { mockPathname, mockRedirect } from '@/test/navigation-mock';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname(),
@@ -12,5 +12,5 @@ vi.mock('next/navigation', () => ({
     prefetch: vi.fn(),
   }),
   useSearchParams: () => new URLSearchParams(),
-  redirect: vi.fn(),
+  redirect: (...args: unknown[]) => mockRedirect(...args),
 }));

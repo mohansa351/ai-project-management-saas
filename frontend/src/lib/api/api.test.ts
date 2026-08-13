@@ -3,6 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { NextConfig } from 'next';
+import { PHASE_PRODUCTION_BUILD, PHASE_PRODUCTION_SERVER } from 'next/constants';
 
 import {
   apiFetch,
@@ -15,6 +17,14 @@ const configPath = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../../../next.config.ts',
 );
+
+function loadConfig(mod: { default: unknown }, phase?: string): NextConfig {
+  const loaded = mod.default;
+  if (typeof loaded !== 'function') {
+    throw new Error('expected next.config default export to be a phase function');
+  }
+  return (loaded as (phase?: string) => NextConfig)(phase);
+}
 
 describe('API rewrite matrix', () => {
   afterEach(() => {
@@ -103,8 +113,7 @@ describe('API rewrite matrix', () => {
     vi.stubEnv('API_URL', 'http://backend:4000/');
     vi.stubEnv('NODE_ENV', 'development');
     const mod = await import('../../../next.config');
-    const config = mod.default;
-    const rewrites = await config.rewrites?.();
+    const rewrites = await loadConfig(mod).rewrites?.();
     expect(rewrites).toEqual([
       {
         source: '/api/v1/:path*',
@@ -118,7 +127,7 @@ describe('API rewrite matrix', () => {
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('API_URL', '');
     const emptyMod = await import('../../../next.config');
-    expect(await emptyMod.default.rewrites?.()).toEqual([
+    expect(await loadConfig(emptyMod).rewrites?.()).toEqual([
       {
         source: '/api/v1/:path*',
         destination: 'http://localhost:4000/api/v1/:path*',
@@ -129,7 +138,7 @@ describe('API rewrite matrix', () => {
     vi.stubEnv('NODE_ENV', 'test');
     vi.stubEnv('API_URL', '   ');
     const blankMod = await import('../../../next.config');
-    expect(await blankMod.default.rewrites?.()).toEqual([
+    expect(await loadConfig(blankMod).rewrites?.()).toEqual([
       {
         source: '/api/v1/:path*',
         destination: 'http://localhost:4000/api/v1/:path*',
@@ -157,12 +166,39 @@ describe('API rewrite matrix', () => {
     expect(() => resolveApiUrl('not-a-url', 'development')).toThrow(/absolute URL/);
   });
 
-  it('resolveApiUrl fails fast in production when API_URL is missing', async () => {
+  it('resolveApiUrl fails fast on production server when API_URL is missing, not during build', async () => {
     vi.resetModules();
     const { resolveApiUrl } = await import('../../../next.config');
 
-    expect(() => resolveApiUrl('', 'production')).toThrow(/required in production/);
-    expect(() => resolveApiUrl(undefined, 'production')).toThrow(/required in production/);
-    expect(resolveApiUrl('http://backend:4000', 'production')).toBe('http://backend:4000');
+    expect(resolveApiUrl('', 'production')).toBe('http://localhost:4000');
+    expect(resolveApiUrl('', 'production', PHASE_PRODUCTION_BUILD)).toBe(
+      'http://localhost:4000',
+    );
+    expect(() => resolveApiUrl('', 'production', PHASE_PRODUCTION_SERVER)).toThrow(
+      /required in production/,
+    );
+    expect(() =>
+      resolveApiUrl(undefined, 'production', PHASE_PRODUCTION_SERVER),
+    ).toThrow(/required in production/);
+    expect(resolveApiUrl('http://backend:4000', 'production')).toBe(
+      'http://backend:4000',
+    );
+  });
+
+  it('next.config load requires API_URL only for the production server phase', async () => {
+    vi.resetModules();
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('API_URL', '');
+    const mod = await import('../../../next.config');
+
+    expect(await loadConfig(mod, PHASE_PRODUCTION_BUILD).rewrites?.()).toEqual([
+      {
+        source: '/api/v1/:path*',
+        destination: 'http://localhost:4000/api/v1/:path*',
+      },
+    ]);
+    expect(() => loadConfig(mod, PHASE_PRODUCTION_SERVER)).toThrow(
+      /required in production/,
+    );
   });
 });

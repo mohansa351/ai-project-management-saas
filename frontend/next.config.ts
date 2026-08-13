@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { PHASE_PRODUCTION_SERVER } from 'next/constants';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,19 +8,23 @@ const ALLOWED_API_HOSTS = new Set(['localhost', '127.0.0.1', '::1', 'backend']);
 
 /**
  * Resolve server-only rewrite target.
- * - Development/test: default `http://localhost:4000` when unset.
- * - Production: require `API_URL`.
+ * - Development/test/`next build`: default `http://localhost:4000` when unset.
+ * - `next start` (production server): require `API_URL`.
  * - Always: absolute http(s), no credentials, allowlisted host.
  */
 export function resolveApiUrl(
   rawEnv: string | undefined = process.env.API_URL,
   nodeEnv: string | undefined = process.env.NODE_ENV,
+  phase?: string,
 ): string {
   const raw = rawEnv?.trim() ?? '';
-  const isProduction = nodeEnv === 'production';
+  // `nodeEnv` is part of the public helper signature (tests pass it); fail-fast
+  // is phase-gated so `next build` (NODE_ENV=production) still defaults locally.
+  void nodeEnv;
+  const requireUrl = phase === PHASE_PRODUCTION_SERVER;
 
   if (!raw) {
-    if (isProduction) {
+    if (requireUrl) {
       throw new Error(
         'API_URL is required in production (absolute http(s) URL to Express)',
       );
@@ -56,21 +61,25 @@ export function resolveApiUrl(
   return parsed.origin;
 }
 
-const apiUrl = resolveApiUrl();
+function createNextConfig(phase?: string): NextConfig {
+  const apiUrl = resolveApiUrl(process.env.API_URL, process.env.NODE_ENV, phase);
 
-const nextConfig: NextConfig = {
-  // Monorepo: silence Turbopack picking the wrong workspace root
-  turbopack: {
-    root: path.join(path.dirname(fileURLToPath(import.meta.url)), '..'),
-  },
-  async rewrites() {
-    return [
-      {
-        source: '/api/v1/:path*',
-        destination: `${apiUrl}/api/v1/:path*`,
-      },
-    ];
-  },
-};
+  return {
+    // Monorepo: silence Turbopack picking the wrong workspace root
+    turbopack: {
+      root: path.join(path.dirname(fileURLToPath(import.meta.url)), '..'),
+    },
+    async rewrites() {
+      return [
+        {
+          source: '/api/v1/:path*',
+          destination: `${apiUrl}/api/v1/:path*`,
+        },
+      ];
+    },
+  };
+}
 
-export default nextConfig;
+export default function nextConfig(phase?: string): NextConfig {
+  return createNextConfig(phase);
+}

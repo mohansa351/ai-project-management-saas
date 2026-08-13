@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -36,6 +37,16 @@ export function Topbar({ title, className }: TopbarProps) {
   useEffect(() => {
     setMobileNavOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined;
+    const mq = window.matchMedia('(min-width: 768px)');
+    const onChange = () => {
+      if (mq.matches) setMobileNavOpen(false);
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   return (
     <header
@@ -67,8 +78,9 @@ export function Topbar({ title, className }: TopbarProps) {
           >
             <SheetHeader className="sr-only">
               <SheetTitle>Navigation</SheetTitle>
+              <SheetDescription>Primary application navigation</SheetDescription>
             </SheetHeader>
-            <Sidebar mobile />
+            <Sidebar mobile onNavigate={() => setMobileNavOpen(false)} />
           </SheetContent>
         </Sheet>
         <h1

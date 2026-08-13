@@ -11,13 +11,19 @@ type SidebarProps = {
   className?: string;
   /** When true, render for mobile Sheet (always expanded labels). */
   mobile?: boolean;
+  /** Close the mobile sheet even when the clicked route is already active. */
+  onNavigate?: () => void;
 };
 
 /**
  * Desktop/tablet: expanded ≥lg (240px), icon-collapsed md–&lt;lg (64px).
  * Mobile sheet: pass `mobile` for always-expanded labels.
  */
-export function Sidebar({ className, mobile = false }: SidebarProps) {
+export function Sidebar({
+  className,
+  mobile = false,
+  onNavigate,
+}: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -40,6 +46,7 @@ export function Sidebar({ className, mobile = false }: SidebarProps) {
       >
         <Link
           href="/dashboard"
+          onClick={() => onNavigate?.()}
           data-testid="wordmark"
           className={cn(
             'inline-flex min-h-11 min-w-11 items-center justify-center rounded-md font-semibold tracking-tight text-primary',
@@ -71,6 +78,7 @@ export function Sidebar({ className, mobile = false }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => onNavigate?.()}
               aria-label={item.label}
               aria-current={active ? 'page' : undefined}
               data-testid={`nav-${item.label.toLowerCase()}`}

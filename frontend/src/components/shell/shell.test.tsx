@@ -2,19 +2,19 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AppShellLayout from '@/app/(app)/layout';
+import HomePage from '@/app/page';
 import { AppShell } from '@/components/shell/app-shell';
 import { primaryNavItems } from '@/components/shell/nav-items';
-import { mockPathname } from '@/test/navigation-mock';
+import { mockPathname, mockRedirect } from '@/test/navigation-mock';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const shellSrcDir = here;
 const globalsCssPath = path.resolve(here, '../../app/globals.css');
-const rootPagePath = path.resolve(here, '../../app/page.tsx');
 
 function readShellSources(): string {
   const files = [
@@ -136,6 +136,88 @@ describe('shell breakpoints matrix', () => {
     expect(within(sheet).getByTestId('sidebar-mobile')).toBeInTheDocument();
     expect(within(sheet).getByTestId('wordmark')).toHaveTextContent('APM');
     expect(within(sheet).queryByTestId('sheet-close')).not.toBeInTheDocument();
+    expect(within(sheet).getByText('Primary application navigation')).toBeInTheDocument();
+
+    const mobileDashboard = within(sheet).getByTestId('nav-dashboard');
+    expect(mobileDashboard.querySelector('span')?.className).toContain('inline');
+    expect(mobileDashboard.querySelector('span')?.className).not.toContain('hidden');
+  });
+
+  it('mobile sheet closes on pathname change and on current-route click', async () => {
+    const user = userEvent.setup();
+    const view = render(
+      <AppShell>
+        <p>content</p>
+      </AppShell>,
+    );
+
+    await user.click(screen.getByTestId('mobile-nav-trigger'));
+    expect(await screen.findByTestId('mobile-nav-sheet')).toBeInTheDocument();
+
+    mockPathname.mockReturnValue('/projects');
+    view.rerender(
+      <AppShell>
+        <p>content</p>
+      </AppShell>,
+    );
+    expect(screen.queryByTestId('mobile-nav-sheet')).not.toBeInTheDocument();
+
+    mockPathname.mockReturnValue('/dashboard');
+    view.rerender(
+      <AppShell>
+        <p>content</p>
+      </AppShell>,
+    );
+    await user.click(screen.getByTestId('mobile-nav-trigger'));
+    const sheet = await screen.findByTestId('mobile-nav-sheet');
+    await user.click(within(sheet).getByTestId('nav-dashboard'));
+    expect(screen.queryByTestId('mobile-nav-sheet')).not.toBeInTheDocument();
+  });
+
+  it('mobile sheet closes when viewport crosses md', async () => {
+    const user = userEvent.setup();
+    const listeners = new Set<(event: Event) => void>();
+    const media = {
+      matches: false,
+      media: '(min-width: 768px)',
+      addEventListener: (_event: string, cb: (event: Event) => void) => {
+        listeners.add(cb);
+      },
+      removeEventListener: (_event: string, cb: (event: Event) => void) => {
+        listeners.delete(cb);
+      },
+      addListener: (cb: (event: Event) => void) => {
+        listeners.add(cb);
+      },
+      removeListener: (cb: (event: Event) => void) => {
+        listeners.delete(cb);
+      },
+      dispatchEvent: () => true,
+    };
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockImplementation(() => media),
+    );
+
+    try {
+      render(
+        <AppShell>
+          <p>content</p>
+        </AppShell>,
+      );
+      expect(listeners.size).toBeGreaterThan(0);
+
+      await user.click(screen.getByTestId('mobile-nav-trigger'));
+      expect(await screen.findByTestId('mobile-nav-sheet')).toBeInTheDocument();
+
+      await act(async () => {
+        media.matches = true;
+        listeners.forEach((cb) => cb(new Event('change')));
+      });
+      expect(screen.queryByTestId('mobile-nav-sheet')).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('topbar heading reflects mocked pathname', () => {
@@ -161,8 +243,9 @@ describe('shell breakpoints matrix', () => {
   });
 
   it('root page redirects to /dashboard', () => {
-    const source = readFileSync(rootPagePath, 'utf8');
-    expect(source).toContain("redirect('/dashboard')");
+    mockRedirect.mockClear();
+    HomePage();
+    expect(mockRedirect).toHaveBeenCalledWith('/dashboard');
   });
 });
 
