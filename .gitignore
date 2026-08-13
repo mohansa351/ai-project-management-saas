@@ -1,0 +1,136 @@
+# =============================================================================
+# AI Project Management SaaS - root .gitignore
+# Public portfolio repo: keep application source + docs; exclude private BMAD.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# BMAD (private development tooling - do not publish)
+# -----------------------------------------------------------------------------
+_bmad/
+_bmad-output/
+.agents/
+.claude/
+.github/agents/bmad-*.agent.md
+ref_docx/
+
+# BMAD-generated / private artifacts that may appear outside BMAD dirs
+# Root-anchored patterns below do not affect docs/
+bmad-manifest.json
+.memlog.md
+epics.monolith.backup.md
+/sprint-status.yaml
+/deferred-work.md
+/implementation-readiness.md
+/bmad-build-auto-result-*.md
+/spec-*.md
+**/implementation-artifacts/
+
+# -----------------------------------------------------------------------------
+# Secrets & local environment
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# -----------------------------------------------------------------------------
+# Dependencies
+# -----------------------------------------------------------------------------
+node_modules/
+.pnp
+.pnp.js
+.yarn/
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# -----------------------------------------------------------------------------
+# Next.js / React (frontend)
+# -----------------------------------------------------------------------------
+.next/
+out/
+.vercel/
+next-env.d.ts
+*.tsbuildinfo
+
+# -----------------------------------------------------------------------------
+# Node.js / Express / TypeScript (backend & shared)
+# -----------------------------------------------------------------------------
+dist/
+build/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# -----------------------------------------------------------------------------
+# Prisma (ignore local DBs only - keep schema/ & migrations/ tracked)
+# -----------------------------------------------------------------------------
+prisma/*.db
+prisma/*.db-journal
+**/prisma/*.db
+**/prisma/*.db-journal
+
+# -----------------------------------------------------------------------------
+# Docker / local data volumes (keep docker-compose.yml tracked)
+# -----------------------------------------------------------------------------
+docker-data/
+.docker/
+
+# -----------------------------------------------------------------------------
+# Redis / local runtime dumps
+# -----------------------------------------------------------------------------
+dump.rdb
+*.rdb
+
+# -----------------------------------------------------------------------------
+# Test / coverage artifacts (keep tests/ source tracked)
+# -----------------------------------------------------------------------------
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+.turbo/
+
+# -----------------------------------------------------------------------------
+# IDE / editor
+# -----------------------------------------------------------------------------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.swp
+*.swo
+*~
+
+# -----------------------------------------------------------------------------
+# OS files
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# -----------------------------------------------------------------------------
+# Temporary / cache / misc generated
+# -----------------------------------------------------------------------------
+tmp/
+temp/
+.tmp/
+*.tmp
+*.temp
+.cache/
+.eslintcache
+.stylelintcache
+*.pid
+*.seed
+*.pid.lock
+.parcel-cache/
+.sass-cache/

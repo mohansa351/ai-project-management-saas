@@ -1,0 +1,16 @@
+# =============================================================================
+# AI Project Management SaaS — Docker Compose
+# =============================================================================
+# STATUS: Planned / not implemented
+# Ownership: Epic 1 / Story 1.2 (Docker Compose baseline services)
+#
+# Intended local stack (not defined here yet):
+#   - frontend  (Next.js)  — port 3000
+#   - backend   (Express)  — port 4000
+#   - postgres             — port 5432
+#   - redis                — port 6379
+#
+# Do not run `docker compose up` until Story 1.2 lands service definitions.
+# =============================================================================
+
+services: {}
