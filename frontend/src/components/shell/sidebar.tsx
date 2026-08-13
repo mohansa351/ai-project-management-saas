@@ -42,8 +42,9 @@ export function Sidebar({ className, mobile = false }: SidebarProps) {
           href="/dashboard"
           data-testid="wordmark"
           className={cn(
-            'font-semibold tracking-tight text-primary',
-            mobile ? 'text-lg' : 'text-sm lg:text-lg',
+            'inline-flex min-h-11 min-w-11 items-center justify-center rounded-md font-semibold tracking-tight text-primary',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+            mobile ? 'justify-start text-lg' : 'text-sm lg:justify-start lg:text-lg',
           )}
         >
           APM
@@ -75,6 +76,7 @@ export function Sidebar({ className, mobile = false }: SidebarProps) {
               data-testid={`nav-${item.label.toLowerCase()}`}
               className={cn(
                 'relative flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
                 !mobile && 'w-11 justify-center px-0 lg:w-auto lg:justify-start lg:px-3',
                 active
                   ? 'bg-muted text-primary before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-primary'

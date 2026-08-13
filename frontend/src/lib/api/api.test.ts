@@ -4,7 +4,12 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { apiFetch, apiJson, getApiBasePath } from '@/lib/api/client';
+import {
+  apiFetch,
+  apiJson,
+  getApiBasePath,
+  resolveApiPath,
+} from '@/lib/api/client';
 
 const configPath = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -45,6 +50,16 @@ describe('API rewrite matrix', () => {
     expect(url).toBe('/api/v1/health');
   });
 
+  it('rejects path traversal that would escape /api/v1', () => {
+    expect(() => resolveApiPath('/api/v1/../../evil')).toThrow(/escapes \/api\/v1/);
+    expect(() => resolveApiPath('/api/v1/%2e%2e/%2e%2e/evil')).toThrow(
+      /escapes \/api\/v1/,
+    );
+    expect(() => resolveApiPath('https://evil.example/api/v1/health')).toThrow(
+      /relative/,
+    );
+  });
+
   it('merges Headers instances without dropping Accept', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -76,7 +91,7 @@ describe('API rewrite matrix', () => {
     await expect(apiFetch('/health')).rejects.toThrow('Failed to fetch');
   });
 
-  it('next.config rewrites proxy /api/v1/:path* to Express via API_URL', async () => {
+  it('next.config rewrites proxy /api/v1/:path* to Express via allowlisted API_URL', async () => {
     const source = readFileSync(configPath, 'utf8');
 
     expect(source).toContain("source: '/api/v1/:path*'");
@@ -85,20 +100,22 @@ describe('API rewrite matrix', () => {
     expect(source).not.toContain('NEXT_PUBLIC');
 
     vi.resetModules();
-    vi.stubEnv('API_URL', 'http://express.test:4000/');
+    vi.stubEnv('API_URL', 'http://backend:4000/');
+    vi.stubEnv('NODE_ENV', 'development');
     const mod = await import('../../../next.config');
     const config = mod.default;
     const rewrites = await config.rewrites?.();
     expect(rewrites).toEqual([
       {
         source: '/api/v1/:path*',
-        destination: 'http://express.test:4000/api/v1/:path*',
+        destination: 'http://backend:4000/api/v1/:path*',
       },
     ]);
   });
 
-  it('rewrites fall back to localhost:4000 when API_URL is unset or empty', async () => {
+  it('rewrites fall back to localhost:4000 when API_URL is unset in development', async () => {
     vi.resetModules();
+    vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('API_URL', '');
     const emptyMod = await import('../../../next.config');
     expect(await emptyMod.default.rewrites?.()).toEqual([
@@ -109,6 +126,7 @@ describe('API rewrite matrix', () => {
     ]);
 
     vi.resetModules();
+    vi.stubEnv('NODE_ENV', 'test');
     vi.stubEnv('API_URL', '   ');
     const blankMod = await import('../../../next.config');
     expect(await blankMod.default.rewrites?.()).toEqual([
@@ -117,5 +135,34 @@ describe('API rewrite matrix', () => {
         destination: 'http://localhost:4000/api/v1/:path*',
       },
     ]);
+  });
+
+  it('resolveApiUrl strips credentials and rejects bad hosts/schemes', async () => {
+    vi.resetModules();
+    const { resolveApiUrl } = await import('../../../next.config');
+
+    expect(resolveApiUrl('http://user:secret@localhost:4000/extra', 'development')).toBe(
+      'http://localhost:4000',
+    );
+    expect(resolveApiUrl('https://127.0.0.1:4000', 'development')).toBe(
+      'https://127.0.0.1:4000',
+    );
+
+    expect(() => resolveApiUrl('http://evil.example:4000', 'development')).toThrow(
+      /allowlisted/,
+    );
+    expect(() => resolveApiUrl('ftp://localhost:4000', 'development')).toThrow(
+      /http or https/,
+    );
+    expect(() => resolveApiUrl('not-a-url', 'development')).toThrow(/absolute URL/);
+  });
+
+  it('resolveApiUrl fails fast in production when API_URL is missing', async () => {
+    vi.resetModules();
+    const { resolveApiUrl } = await import('../../../next.config');
+
+    expect(() => resolveApiUrl('', 'production')).toThrow(/required in production/);
+    expect(() => resolveApiUrl(undefined, 'production')).toThrow(/required in production/);
+    expect(resolveApiUrl('http://backend:4000', 'production')).toBe('http://backend:4000');
   });
 });

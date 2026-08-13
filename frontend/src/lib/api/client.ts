@@ -17,12 +17,39 @@ export type ApiErrorEnvelope = {
 
 export type ApiEnvelope<T> = ApiSuccessEnvelope<T> | ApiErrorEnvelope;
 
-function resolveApiPath(path: string): string {
-  const normalized = path.startsWith('/') ? path : `/${path}`;
-  if (normalized === API_BASE || normalized.startsWith(`${API_BASE}/`)) {
-    return normalized;
+/**
+ * Build a same-origin `/api/v1…` path and reject traversal/escape outside that prefix.
+ */
+export function resolveApiPath(path: string): string {
+  const input = path.trim();
+  if (!input) {
+    throw new Error('apiFetch path must be a non-empty relative path');
   }
-  return `${API_BASE}${normalized}`;
+  if (/^[a-zA-Z][a-zA-Z+\-.]*:/.test(input)) {
+    throw new Error('apiFetch must use relative /api/v1 paths only');
+  }
+
+  const withLeadingSlash = input.startsWith('/') ? input : `/${input}`;
+  const candidate =
+    withLeadingSlash === API_BASE || withLeadingSlash.startsWith(`${API_BASE}/`)
+      ? withLeadingSlash
+      : `${API_BASE}${withLeadingSlash}`;
+
+  // Collapse `.` / `..` and decode percent-encoding the same way the browser will.
+  const resolved = new URL(candidate, 'http://apm.invalid');
+  const { pathname, search } = resolved;
+
+  if (pathname !== API_BASE && !pathname.startsWith(`${API_BASE}/`)) {
+    throw new Error('apiFetch path escapes /api/v1');
+  }
+
+  for (const segment of pathname.split('/')) {
+    if (segment === '..' || segment === '.') {
+      throw new Error('apiFetch path escapes /api/v1');
+    }
+  }
+
+  return `${pathname}${search}`;
 }
 
 function mergeHeaders(init?: HeadersInit): Headers {
@@ -42,10 +69,6 @@ export async function apiFetch(
   init?: RequestInit,
 ): Promise<Response> {
   const url = resolveApiPath(path);
-
-  if (!url.startsWith(API_BASE)) {
-    throw new Error('apiFetch must use relative /api/v1 paths only');
-  }
 
   return fetch(url, {
     ...init,

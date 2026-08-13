@@ -67,6 +67,9 @@ describe('shell breakpoints matrix', () => {
       'href',
       '/dashboard',
     );
+    const wordmark = within(sidebar).getByTestId('wordmark');
+    expect(wordmark.className).toMatch(/min-h-11/);
+    expect(wordmark.className).toMatch(/focus-visible:ring-2/);
     expect(within(sidebar).getByTestId('org-switcher')).toBeInTheDocument();
     expect(within(sidebar).getByTestId('org-switcher')).toBeDisabled();
 
@@ -76,6 +79,7 @@ describe('shell breakpoints matrix', () => {
       );
       expect(link).toBeInTheDocument();
       expect(link).toHaveAttribute('href', item.href);
+      expect(link.className).toMatch(/focus-visible:ring-2/);
     }
 
     expect(within(sidebar).queryByTestId('nav-admin')).not.toBeInTheDocument();
