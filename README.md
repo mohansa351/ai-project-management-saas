@@ -1,10 +1,10 @@
 # AI Project Management SaaS
 
-**Status:** Planning complete · Story 1.1 shared tooling scaffold complete · Application features not started
+**Status:** Planning complete · Stories 1.1–1.2 scaffolding complete · Application features not started
 
 A portfolio-grade, multi-tenant project management platform for software teams. The product is designed as a realistic SaaS—organizations, projects, tasks, Kanban, collaboration, analytics, and secure AI assistance—not a toy todo app.
 
-This repository has a **public structure plus shared lint/TypeScript tooling**. Application features, Docker services, and CI are **planned and not implemented yet**.
+This repository has a **public structure, shared lint/TypeScript tooling, and a Docker Compose baseline** (Postgres, Redis, and app placeholders). Express/Next apps and CI are **not implemented yet**.
 
 ---
 
@@ -17,7 +17,7 @@ This repository has a **public structure plus shared lint/TypeScript tooling**. 
 | **Audience** | Hiring managers and technical reviewers evaluating architecture and delivery discipline                 |
 | **Data**     | Fictional seed data only (e.g. Acme Technologies); no proprietary client artifacts                      |
 
-**Intended reviewer experience (when implemented):** clone → `docker compose up` → sign in with demo credentials → walk org → project → task → Kanban → AI → dashboard.
+**Intended reviewer experience (when product features land):** clone → `docker compose up -d --build` → sign in with demo credentials → walk org → project → task → Kanban → AI → dashboard. Today Compose starts Postgres, Redis, and HTTP placeholders only.
 
 ---
 
@@ -28,8 +28,9 @@ This repository has a **public structure plus shared lint/TypeScript tooling**. 
 | Product / UX / Architecture planning         | Complete (private planning artifacts; not published) |
 | Public repository scaffold                   | Structure + Story 1.1 tooling in place               |
 | Story 1.1 — Monorepo & shared tooling        | Complete (lint/typecheck stubs)                      |
+| Story 1.2 — Docker Compose baseline          | Complete (postgres/redis + app placeholder images)   |
 | Application source (`frontend/`, `backend/`) | Stub packages only (apps in later stories)           |
-| Docker Compose services                      | Planned — placeholder file only                      |
+| Docker Compose services                      | Baseline defined — placeholders until Stories 1.3–1.4 |
 | CI / tests / seed data                       | Planned                                              |
 
 ---
@@ -74,8 +75,8 @@ Browser → Next.js (:3000) ──rewrite──► Express /api/v1 (:4000)
 
 ```text
 ai-project-management-saas/
-├── frontend/                 # Own package.json + strict TS (app in later stories)
-├── backend/                  # Own package.json + strict TS (API/prisma later)
+├── frontend/                 # Own package.json + strict TS + Dockerfile stub
+├── backend/                  # Own package.json + strict TS + Dockerfile stub
 ├── docs/                     # Public documentation (populated later)
 ├── scripts/                  # Helper scripts (populated later)
 ├── tests/                    # Cross-cutting / E2E test home (populated later)
@@ -83,7 +84,7 @@ ai-project-management-saas/
 ├── tsconfig.base.json        # Shared strict TypeScript base
 ├── eslint.config.mjs         # Shared ESLint flat config
 ├── prettier.config.mjs       # Shared Prettier config
-├── docker-compose.yml        # Placeholder — services not defined yet
+├── docker-compose.yml        # Story 1.2 baseline (postgres, redis, stubs)
 ├── .gitignore
 └── README.md                 # You are here
 ```
@@ -150,23 +151,20 @@ All AI calls are **backend-only**, project-authorized, and rate-limited. Suggest
 
 ## Docker setup
 
-**Status: planned / not implemented.**
+**Status: Story 1.2 baseline defined.** Compose starts Postgres 16, Redis 7, and Node placeholder listeners on `:4000` / `:3000` (Express/Next replace those stubs in Stories 1.3–1.4).
 
-`docker-compose.yml` is a **placeholder**. Intended services:
-
-| Service    | Role                                       | Planned port |
-| ---------- | ------------------------------------------ | ------------ |
-| `frontend` | Next.js UI                                 | 3000         |
-| `backend`  | Express API                                | 4000         |
-| `postgres` | Primary database                           | 5432         |
-| `redis`    | Rate limits, unread counts, optional cache | 6379         |
+| Service    | Role                                       | Port |
+| ---------- | ------------------------------------------ | ---- |
+| `frontend` | Placeholder HTTP (Next.js later)           | 3000 |
+| `backend`  | Placeholder HTTP (Express later)           | 4000 |
+| `postgres` | Primary database                           | 5432 |
+| `redis`    | Rate limits, unread counts, optional cache | 6379 |
 
 ```bash
-# Not ready yet — Story 1.2 will define services
-# docker compose up
+docker compose up -d --build
 ```
 
-Environment templates (`.env.example`), health checks, and bootstrap docs will land in later Epic 1 stories.
+Environment templates (`.env.example`) and full bootstrap docs land in Story 1.5.
 
 ---
 
@@ -174,7 +172,7 @@ Environment templates (`.env.example`), health checks, and bootstrap docs will l
 
 | Epic   | Focus                                                                                          | Status                                   |
 | ------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| **1**  | Platform foundation & app shell (tooling, Compose, API skeleton, Next shell, README bootstrap) | Ready to start after GitHub repo is live |
+| **1**  | Platform foundation & app shell (tooling, Compose, API skeleton, Next shell, README bootstrap) | In progress (1.1–1.2 done)               |
 | **2**  | Authentication & secure sessions                                                               | Planned                                  |
 | **3**  | Organizations & RBAC                                                                           | Planned                                  |
 | **4**  | Projects & members                                                                             | Planned                                  |
@@ -186,7 +184,7 @@ Environment templates (`.env.example`), health checks, and bootstrap docs will l
 | **10** | Super Admin oversight                                                                          | Planned                                  |
 | **11** | Portfolio delivery & quality (seed, OpenAPI, CI, tests, README polish)                         | Planned                                  |
 
-**Next implementation story:** Story 1.2 — Docker Compose baseline services.
+**Next implementation story:** Story 1.3 — Express API skeleton, envelopes & health.
 
 ---
 
@@ -207,4 +205,4 @@ To be decided when the public GitHub repository is published.
 
 ---
 
-_Planning complete. Implementation begins after the GitHub repository is created and this scaffold is confirmed._
+_Planning complete. Stories 1.1–1.2 scaffolding is in place; product features follow in later epic stories._
