@@ -1,0 +1,25 @@
+{
+  "name": "ai-project-management-saas",
+  "private": true,
+  "version": "0.0.0",
+  "description": "AI Project Management SaaS - root shared tooling (no workspaces)",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "lint": "npm run lint --prefix frontend && npm run lint --prefix backend",
+    "typecheck": "npm run typecheck --prefix frontend && npm run typecheck --prefix backend",
+    "lint:frontend": "npm run lint --prefix frontend",
+    "lint:backend": "npm run lint --prefix backend",
+    "typecheck:frontend": "npm run typecheck --prefix frontend",
+    "typecheck:backend": "npm run typecheck --prefix backend",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "typescript-eslint": "^8.26.1"
+  }
+}

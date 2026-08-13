@@ -1,0 +1,18 @@
+node_modules
+dist
+build
+coverage
+.next
+out
+*.tsbuildinfo
+package-lock.json
+npm-debug.log*
+yarn.lock
+pnpm-lock.yaml
+
+# Private BMAD / agent tooling (must never be reformatted by root scripts)
+_bmad/
+_bmad-output/
+.agents/
+.claude/
+ref_docx/
