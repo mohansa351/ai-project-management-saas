@@ -50,7 +50,7 @@ export function resolveApiUrl(
     parsed.password = '';
   }
 
-  const host = parsed.hostname.toLowerCase();
+  const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (!ALLOWED_API_HOSTS.has(host)) {
     throw new Error(
       `API_URL host "${parsed.hostname}" is not allowlisted for local/dev (allowed: ${[...ALLOWED_API_HOSTS].join(', ')})`,

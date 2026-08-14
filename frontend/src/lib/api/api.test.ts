@@ -156,6 +156,9 @@ describe('API rewrite matrix', () => {
     expect(resolveApiUrl('https://127.0.0.1:4000', 'development')).toBe(
       'https://127.0.0.1:4000',
     );
+    expect(resolveApiUrl('http://[::1]:4000', 'development')).toBe(
+      'http://[::1]:4000',
+    );
 
     expect(() => resolveApiUrl('http://evil.example:4000', 'development')).toThrow(
       /allowlisted/,
