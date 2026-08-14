@@ -2,13 +2,19 @@ import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import { env } from './config/env.js';
+import type { AuthController } from './controllers/authController.js';
 import type { HealthController } from './controllers/healthController.js';
 import { AppError } from './lib/http/appError.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestId.js';
 import { createV1Router } from './routes/v1/index.js';
 
-export function createApp(healthController: HealthController): Express {
+export type AppControllers = {
+  healthController: HealthController;
+  authController: AuthController;
+};
+
+export function createApp({ healthController, authController }: AppControllers): Express {
   const app = express();
 
   app.use(helmet());
@@ -22,7 +28,7 @@ export function createApp(healthController: HealthController): Express {
   app.use(express.json());
 
   app.get('/health', healthController.getHealth);
-  app.use('/api/v1', createV1Router(healthController));
+  app.use('/api/v1', createV1Router(healthController, authController));
 
   if (env.NODE_ENV === 'test') {
     app.get('/__test/error', () => {

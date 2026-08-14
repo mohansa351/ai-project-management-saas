@@ -1,7 +1,9 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import request from 'supertest';
 import { createApp } from './app.js';
+import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
+import { AppError } from './lib/http/appError.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestId.js';
 import { HealthService, type Readiness } from './services/healthService.js';
@@ -12,6 +14,19 @@ function mockService(readiness: Readiness): HealthService {
   return {
     getReadiness: jest.fn(async () => readiness),
   } as unknown as HealthService;
+}
+
+function stubAuthController(): AuthController {
+  return {
+    register: jest.fn(),
+  } as unknown as AuthController;
+}
+
+function healthApp(readiness: Readiness = okReadiness) {
+  return createApp({
+    healthController: new HealthController(mockService(readiness)),
+    authController: stubAuthController(),
+  });
 }
 
 const okReadiness: Readiness = {
@@ -30,7 +45,7 @@ const degradedReadiness: Readiness = {
 
 describe('health envelopes', () => {
   it('returns success envelope with readiness fields on GET /health and /api/v1/health', async () => {
-    const app = createApp(new HealthController(mockService(okReadiness)));
+    const app = healthApp();
 
     for (const path of ['/health', '/api/v1/health']) {
       const res = await request(app).get(path).expect(200);
@@ -44,7 +59,7 @@ describe('health envelopes', () => {
   });
 
   it('still responds when a dependency is down', async () => {
-    const app = createApp(new HealthController(mockService(degradedReadiness)));
+    const app = healthApp(degradedReadiness);
     const res = await request(app).get('/health').expect(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe('degraded');
@@ -67,7 +82,7 @@ describe('health envelopes', () => {
 
 describe('request id', () => {
   it('echoes inbound X-Request-Id and generates one when missing', async () => {
-    const app = createApp(new HealthController(mockService(okReadiness)));
+    const app = healthApp();
 
     const inbound = await request(app)
       .get('/health')
@@ -97,7 +112,7 @@ describe('request id', () => {
 
 describe('CORS', () => {
   it('allows the configured frontend origin with credentials', async () => {
-    const app = createApp(new HealthController(mockService(okReadiness)));
+    const app = healthApp();
     const allowed = await request(app)
       .get('/health')
       .set('Origin', 'http://localhost:3000')
@@ -140,7 +155,7 @@ describe('error middleware', () => {
   });
 
   it('maps AppError to envelope via createApp', async () => {
-    const app = createApp(new HealthController(mockService(okReadiness)));
+    const app = healthApp();
     const res = await request(app).get('/__test/error').expect(400);
     expect(res.body).toEqual({
       success: false,
@@ -151,6 +166,32 @@ describe('error middleware', () => {
       },
     });
     expect(JSON.stringify(res.body)).not.toContain('stack');
+  });
+
+  it('includes AppError details on 4xx in production', () => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const req = { requestId: 'err-4xx', log: { error: jest.fn() } } as unknown as Request;
+      const json = jest.fn();
+      const res = { status: jest.fn().mockReturnValue({ json }) } as unknown as Response;
+      const err = new AppError('VALIDATION_ERROR', 'Validation failed', 400, {
+        email: ['Invalid email'],
+      });
+
+      errorHandler(err, req, res, jest.fn());
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      const body = json.mock.calls[0]?.[0] as {
+        success: boolean;
+        error: { code: string; details?: unknown };
+      };
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe('VALIDATION_ERROR');
+      expect(body.error.details).toEqual({ email: ['Invalid email'] });
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
   });
 });
 

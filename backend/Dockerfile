@@ -1,9 +1,10 @@
-# Multi-stage Express API — Story 1.3
+# Multi-stage Express API — Story 1.3 / 2.1
 FROM node:20-alpine AS deps
 WORKDIR /app
-RUN apk add --no-cache libc6-compat openssl
+RUN apk add --no-cache libc6-compat openssl python3 make g++
 COPY package.json package-lock.json ./
 RUN npm install --ignore-scripts
+RUN npm rebuild bcrypt --build-from-source
 
 FROM node:20-alpine AS build
 WORKDIR /app
@@ -25,4 +26,4 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts ./
 EXPOSE 4000
-CMD ["node", "dist/server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]

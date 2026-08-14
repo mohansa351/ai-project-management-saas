@@ -1,16 +1,22 @@
 import { env } from './config/env.js';
 import { createApp } from './app.js';
+import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
 import { redis } from './lib/redis.js';
 import { HealthRepository } from './repositories/healthRepository.js';
+import { UserRepository } from './repositories/userRepository.js';
+import { AuthService } from './services/authService.js';
 import { HealthService } from './services/healthService.js';
 
 const healthController = new HealthController(
   new HealthService(new HealthRepository(prisma, redis)),
 );
-const app = createApp(healthController);
+const authController = new AuthController(
+  new AuthService(new UserRepository(prisma), async () => undefined),
+);
+const app = createApp({ healthController, authController });
 
 const server = app.listen(env.PORT, '0.0.0.0', () => {
   logger.info({ port: env.PORT }, 'API listening');

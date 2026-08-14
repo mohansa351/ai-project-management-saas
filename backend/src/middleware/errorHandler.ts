@@ -25,7 +25,7 @@ export function errorHandler(
   const log = req.log ?? logger;
   log.error({ err, requestId: req.requestId, code, statusCode }, message);
 
-  const details = production ? undefined : appErr?.details;
+  const details = production && statusCode >= 500 ? undefined : appErr?.details;
   const body = failure(code, message, details);
 
   res.status(statusCode).json(body);
