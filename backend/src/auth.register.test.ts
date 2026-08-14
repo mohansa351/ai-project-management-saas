@@ -56,7 +56,7 @@ describe('POST /api/v1/auth/register', () => {
           name: input.name,
         }),
     );
-    const findByEmail = jest.fn(async () => null);
+    const findByEmail = jest.fn<UserRepository['findByEmail']>(async () => null);
     const onUserRegistered = jest.fn(async () => undefined);
     const app = registerApp({ create, findByEmail } as unknown as UserRepository, onUserRegistered);
 
