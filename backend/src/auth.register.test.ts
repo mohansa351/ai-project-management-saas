@@ -1,13 +1,28 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import type { User } from '@prisma/client';
+import type { PrismaClient, User } from '@prisma/client';
 import request from 'supertest';
 import { createApp } from './app.js';
+import { env } from './config/env.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
+import type { EmailProvider } from './lib/email/emailProvider.js';
+import { logger } from './lib/logger.js';
 import { verifyPassword } from './lib/password.js';
+import { hashToken } from './lib/token.js';
+import type { EmailVerificationTokenRepository } from './repositories/emailVerificationTokenRepository.js';
 import type { UserRepository } from './repositories/userRepository.js';
-import { AuthService } from './services/authService.js';
+import { AuthService, type OnUserRegistered } from './services/authService.js';
+import { EmailVerificationService } from './services/emailVerificationService.js';
 import type { HealthService, Readiness } from './services/healthService.js';
+
+/** Runs the callback immediately with a sentinel transaction client, mirroring how a mocked
+ * repository ignores the tx argument it's passed. */
+function fakePrisma(): PrismaClient {
+  const fakeTx = {};
+  return {
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => fn(fakeTx)),
+  } as unknown as PrismaClient;
+}
 
 const okReadiness: Readiness = {
   status: 'ok',
@@ -38,8 +53,46 @@ function storedUser(overrides: Partial<User> = {}): User {
   };
 }
 
-function registerApp(userRepository: UserRepository, onUserRegistered = jest.fn(async () => undefined)) {
-  const authController = new AuthController(new AuthService(userRepository, onUserRegistered));
+function stubTokenRepo(): EmailVerificationTokenRepository {
+  return {
+    create: jest.fn(async () => ({
+      id: 'token_1',
+      userId: 'user_1',
+      tokenHash: 'hash',
+      expiresAt: new Date(),
+      consumedAt: null,
+      createdAt: new Date(),
+    })),
+    findValidByHash: jest.fn(async () => null),
+    markConsumedIfActive: jest.fn(async () => 0),
+    invalidateActiveForUser: jest.fn(async () => undefined),
+    lockForIssuance: jest.fn(async () => undefined),
+  } as unknown as EmailVerificationTokenRepository;
+}
+
+/** Builds the app with the same wiring as server.ts: a real onUserRegistered hook that
+ * calls issueAndSend and isolates provider failures, so a mocked EmailProvider.send can
+ * be asserted directly. */
+function registerApp(
+  userRepository: UserRepository,
+  options: { send?: jest.Mock<EmailProvider['send']>; tokenRepository?: EmailVerificationTokenRepository } = {},
+) {
+  const send = options.send ?? jest.fn(async () => undefined);
+  const tokenRepository = options.tokenRepository ?? stubTokenRepo();
+  const emailVerificationService = new EmailVerificationService(
+    userRepository,
+    tokenRepository,
+    { send },
+    fakePrisma(),
+  );
+  const onUserRegistered: OnUserRegistered = (user) =>
+    emailVerificationService.issueAndSend(user).catch((err) => {
+      logger.warn({ err }, 'verification email failed');
+    });
+  const authController = new AuthController(
+    new AuthService(userRepository, onUserRegistered),
+    emailVerificationService,
+  );
   return createApp({
     healthController: mockHealth(),
     authController,
@@ -57,10 +110,15 @@ describe('POST /api/v1/auth/register', () => {
         }),
     );
     const findByEmail = jest.fn<UserRepository['findByEmail']>(async () => null);
-    const onUserRegistered = jest.fn(async () => undefined);
-    const app = registerApp({ create, findByEmail } as unknown as UserRepository, onUserRegistered);
+    const send = jest.fn<EmailProvider['send']>(async () => undefined);
+    const tokenRepository = stubTokenRepo();
+    const app = registerApp({ create, findByEmail } as unknown as UserRepository, {
+      send,
+      tokenRepository,
+    });
 
     const plaintext = 'password1';
+    const beforeCall = Date.now();
     const res = await request(app)
       .post('/api/v1/auth/register')
       .send({ name: 'Ada Lovelace', email: 'Ada@Example.com', password: plaintext })
@@ -93,7 +151,45 @@ describe('POST /api/v1/auth/register', () => {
     expect(persisted.passwordHash).not.toBe(plaintext);
     expect(persisted.passwordHash).toMatch(/^\$2[aby]\$12\$/);
     await expect(verifyPassword(plaintext, persisted.passwordHash)).resolves.toBe(true);
-    expect(onUserRegistered).toHaveBeenCalledTimes(1);
+    expect(tokenRepository.create).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ to: 'ada@example.com', type: 'verification' }),
+    );
+
+    // Guard against regressions like persisting the raw token instead of its hash, or
+    // breaking the TTL-to-milliseconds math: derive the raw token from the mocked mail body
+    // and cross-check it against what was actually persisted.
+    const sentBody = send.mock.calls[0]?.[0].body ?? '';
+    const rawTokenSent = sentBody.split(': ').pop() ?? '';
+    const persistedToken = (tokenRepository.create as jest.Mock).mock.calls[0]?.[0] as {
+      tokenHash: string;
+      expiresAt: Date;
+    };
+    expect(persistedToken.tokenHash).toBe(hashToken(rawTokenSent));
+    const expectedExpiry = beforeCall + env.EMAIL_VERIFICATION_TOKEN_TTL_MINUTES * 60_000;
+    expect(persistedToken.expiresAt.getTime()).toBeGreaterThan(expectedExpiry - 5_000);
+    expect(persistedToken.expiresAt.getTime()).toBeLessThan(expectedExpiry + 5_000);
+  });
+
+  it('still returns 201 when the email provider throws (send failure is isolated)', async () => {
+    const create = jest.fn(
+      async (input: { email: string; passwordHash: string; name: string; systemRole: 'USER' }) =>
+        storedUser({ email: input.email, passwordHash: input.passwordHash, name: input.name }),
+    );
+    const findByEmail = jest.fn<UserRepository['findByEmail']>(async () => null);
+    const send = jest.fn<EmailProvider['send']>(async () => {
+      throw new Error('smtp unavailable');
+    });
+    const app = registerApp({ create, findByEmail } as unknown as UserRepository, { send });
+
+    const res = await request(app)
+      .post('/api/v1/auth/register')
+      .send({ name: 'Ada', email: 'ada@example.com', password: 'password1' })
+      .expect(201);
+
+    expect(res.body.success).toBe(true);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a password over the bcrypt 72-byte limit', async () => {

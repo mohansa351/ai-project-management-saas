@@ -6,6 +6,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().trim().min(1),
   REDIS_URL: z.string().trim().min(1),
   CORS_ORIGIN: z.string().trim().min(1),
+  EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(129600).default(1440),
 });
 
 export type Env = z.infer<typeof envSchema>;

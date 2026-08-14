@@ -1,4 +1,4 @@
-import type { PrismaClient, User } from '@prisma/client';
+import type { Prisma, PrismaClient, User } from '@prisma/client';
 import { AppError } from '../lib/http/appError.js';
 
 export type CreateUserInput = {
@@ -7,6 +7,8 @@ export type CreateUserInput = {
   name: string;
   systemRole: 'USER' | 'SUPER_ADMIN';
 };
+
+type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient;
 
 export const EMAIL_TAKEN_ERROR = {
   message: 'This email is already taken.',
@@ -27,6 +29,13 @@ export class UserRepository {
 
   async findByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  }
+
+  async markEmailVerified(id: string, client: PrismaClientOrTx = this.prisma): Promise<User> {
+    return client.user.update({
+      where: { id },
+      data: { emailVerifiedAt: new Date() },
+    });
   }
 
   async create(input: CreateUserInput): Promise<User> {

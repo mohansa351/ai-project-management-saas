@@ -2,20 +2,33 @@ import { env } from './config/env.js';
 import { createApp } from './app.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
+import { ConsoleEmailProvider } from './lib/email/emailProvider.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
 import { redis } from './lib/redis.js';
+import { EmailVerificationTokenRepository } from './repositories/emailVerificationTokenRepository.js';
 import { HealthRepository } from './repositories/healthRepository.js';
 import { UserRepository } from './repositories/userRepository.js';
 import { AuthService } from './services/authService.js';
+import { EmailVerificationService } from './services/emailVerificationService.js';
 import { HealthService } from './services/healthService.js';
 
 const healthController = new HealthController(
   new HealthService(new HealthRepository(prisma, redis)),
 );
-const authController = new AuthController(
-  new AuthService(new UserRepository(prisma), async () => undefined),
+const userRepository = new UserRepository(prisma);
+const emailVerificationService = new EmailVerificationService(
+  userRepository,
+  new EmailVerificationTokenRepository(prisma),
+  new ConsoleEmailProvider(),
+  prisma,
 );
+const authService = new AuthService(userRepository, (user) =>
+  emailVerificationService.issueAndSend(user).catch((err) => {
+    logger.warn({ err }, 'verification email failed');
+  }),
+);
+const authController = new AuthController(authService, emailVerificationService);
 const app = createApp({ healthController, authController });
 
 const server = app.listen(env.PORT, '0.0.0.0', () => {

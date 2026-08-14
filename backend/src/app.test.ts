@@ -19,6 +19,8 @@ function mockService(readiness: Readiness): HealthService {
 function stubAuthController(): AuthController {
   return {
     register: jest.fn(),
+    verifyEmail: jest.fn(),
+    resendVerification: jest.fn(),
   } as unknown as AuthController;
 }
 
