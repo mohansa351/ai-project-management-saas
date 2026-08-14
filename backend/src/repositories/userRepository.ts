@@ -8,6 +8,11 @@ export type CreateUserInput = {
   systemRole: 'USER' | 'SUPER_ADMIN';
 };
 
+export const EMAIL_TAKEN_ERROR = {
+  message: 'This email is already taken.',
+  details: { email: ['This email is already taken'] },
+} as const;
+
 function isUniqueConstraint(err: unknown): boolean {
   return (
     typeof err === 'object' &&
@@ -37,9 +42,12 @@ export class UserRepository {
       });
     } catch (err) {
       if (isUniqueConstraint(err)) {
-        throw new AppError('VALIDATION_ERROR', 'This email is already taken.', 400, {
-          email: ['This email is already taken'],
-        });
+        throw new AppError(
+          'VALIDATION_ERROR',
+          EMAIL_TAKEN_ERROR.message,
+          400,
+          EMAIL_TAKEN_ERROR.details,
+        );
       }
       throw err;
     }

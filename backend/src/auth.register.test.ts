@@ -96,6 +96,67 @@ describe('POST /api/v1/auth/register', () => {
     expect(onUserRegistered).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects a password over the bcrypt 72-byte limit', async () => {
+    const create = jest.fn();
+    const findByEmail = jest.fn();
+    const app = registerApp({ create, findByEmail } as unknown as UserRepository);
+
+    const overLimit = 'a'.repeat(73);
+    const res = await request(app)
+      .post('/api/v1/auth/register')
+      .send({ name: 'Ada', email: 'ada@example.com', password: overLimit })
+      .expect(400);
+
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toEqual(
+      expect.objectContaining({ password: expect.any(Array) }),
+    );
+    expect(create).not.toHaveBeenCalled();
+    expect(findByEmail).not.toHaveBeenCalled();
+  });
+
+  it('accepts a password at exactly the 72-byte limit', async () => {
+    const create = jest.fn(
+      async (input: { email: string; passwordHash: string; name: string; systemRole: 'USER' }) =>
+        storedUser({ email: input.email, passwordHash: input.passwordHash, name: input.name }),
+    );
+    const findByEmail = jest.fn<UserRepository['findByEmail']>(async () => null);
+    const app = registerApp({ create, findByEmail } as unknown as UserRepository);
+
+    const atLimit = 'a'.repeat(72);
+    await request(app)
+      .post('/api/v1/auth/register')
+      .send({ name: 'Ada', email: 'ada@example.com', password: atLimit })
+      .expect(201);
+
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores client-supplied systemRole/isActive fields (no mass assignment)', async () => {
+    const create = jest.fn(
+      async (input: { email: string; passwordHash: string; name: string; systemRole: 'USER' }) =>
+        storedUser({ email: input.email, passwordHash: input.passwordHash, name: input.name }),
+    );
+    const findByEmail = jest.fn<UserRepository['findByEmail']>(async () => null);
+    const app = registerApp({ create, findByEmail } as unknown as UserRepository);
+
+    await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        name: 'Ada Lovelace',
+        email: 'ada@example.com',
+        password: 'password1',
+        systemRole: 'SUPER_ADMIN',
+        isActive: false,
+      })
+      .expect(201);
+
+    expect(create).toHaveBeenCalledTimes(1);
+    const persisted = create.mock.calls[0]?.[0] as { systemRole: string };
+    expect(persisted.systemRole).toBe('USER');
+    expect(persisted).not.toHaveProperty('isActive');
+  });
+
   it('returns VALIDATION_ERROR for duplicate email without extra account fields', async () => {
     const existing = storedUser();
     const create = jest.fn();

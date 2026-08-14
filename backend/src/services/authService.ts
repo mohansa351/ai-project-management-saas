@@ -1,7 +1,7 @@
 import type { User } from '@prisma/client';
 import { AppError } from '../lib/http/appError.js';
 import { hashPassword } from '../lib/password.js';
-import type { UserRepository } from '../repositories/userRepository.js';
+import { EMAIL_TAKEN_ERROR, type UserRepository } from '../repositories/userRepository.js';
 
 export type PublicUser = {
   id: string;
@@ -45,9 +45,12 @@ export class AuthService {
     const email = input.email.toLowerCase();
     const existing = await this.userRepository.findByEmail(email);
     if (existing) {
-      throw new AppError('VALIDATION_ERROR', 'This email is already taken.', 400, {
-        email: ['This email is already taken'],
-      });
+      throw new AppError(
+        'VALIDATION_ERROR',
+        EMAIL_TAKEN_ERROR.message,
+        400,
+        EMAIL_TAKEN_ERROR.details,
+      );
     }
 
     const passwordHash = await hashPassword(input.password);
