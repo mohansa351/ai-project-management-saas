@@ -50,4 +50,15 @@ describe('UserRepository', () => {
       },
     });
   });
+
+  it('finds a user by id', async () => {
+    const findUnique = jest.fn(async (args: { where: { id: string } }) => {
+      expect(args).toEqual({ where: { id: 'user_1' } });
+      return { id: 'user_1', email: 'ada@example.com' };
+    });
+    const prisma = { user: { findUnique } } as unknown as PrismaClient;
+    const repo = new UserRepository(prisma);
+    await repo.findById('user_1');
+    expect(findUnique).toHaveBeenCalledWith({ where: { id: 'user_1' } });
+  });
 });

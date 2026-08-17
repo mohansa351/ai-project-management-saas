@@ -106,7 +106,7 @@ function registerApp(
       logger.warn({ err }, 'verification email failed');
     });
   const authController = new AuthController(
-    new AuthService(userRepository, onUserRegistered, stubRefreshRepo()),
+    new AuthService(userRepository, onUserRegistered, stubRefreshRepo(), fakePrisma()),
     emailVerificationService,
   );
   return createApp({

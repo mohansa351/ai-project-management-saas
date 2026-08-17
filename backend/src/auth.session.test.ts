@@ -89,7 +89,7 @@ function sessionApp(
     fakePrisma(),
   );
   const authController = new AuthController(
-    new AuthService(userRepository, async () => undefined, refreshTokenRepository),
+    new AuthService(userRepository, async () => undefined, refreshTokenRepository, fakePrisma()),
     emailVerificationService,
   );
   return {
@@ -129,6 +129,7 @@ describe('POST /api/v1/auth/login and logout', () => {
       tokenHash: input.tokenHash,
       expiresAt: input.expiresAt,
       revokedAt: null,
+      replacedByHash: null,
       userAgent: input.userAgent ?? null,
       createdAt: now,
     }));
@@ -330,6 +331,7 @@ describe('POST /api/v1/auth/login and logout', () => {
       tokenHash: input.tokenHash,
       expiresAt: input.expiresAt,
       revokedAt: null,
+      replacedByHash: null,
       userAgent: input.userAgent ?? null,
       createdAt: now,
     }));

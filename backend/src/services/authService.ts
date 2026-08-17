@@ -1,4 +1,4 @@
-import type { User } from '@prisma/client';
+import type { PrismaClient, RefreshToken, User } from '@prisma/client';
 import { AppError } from '../lib/http/appError.js';
 import { signAccessToken } from '../lib/jwt.js';
 import { hashPassword, verifyLoginPassword } from '../lib/password.js';
@@ -38,6 +38,12 @@ export type LoginResult = {
   refreshToken: string;
 };
 
+export type RefreshResult =
+  | { outcome: 'rotated'; user: PublicUser; accessToken: string; refreshToken: string }
+  | { outcome: 'overlap' }
+  | { outcome: 'reject' }
+  | { outcome: 'sign_failed' };
+
 const AUTH_UNAUTHORIZED_MESSAGE = 'Invalid email or password.';
 
 export function toPublicUser(user: User): PublicUser {
@@ -57,11 +63,16 @@ function unauthorized(): AppError {
   return new AppError('AUTH_UNAUTHORIZED', AUTH_UNAUTHORIZED_MESSAGE, 401);
 }
 
+function isLive(row: RefreshToken, now = new Date()): boolean {
+  return row.revokedAt === null && row.expiresAt > now;
+}
+
 export class AuthService {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly onUserRegistered: OnUserRegistered,
     private readonly refreshTokenRepository: RefreshTokenRepository,
+    private readonly prisma: PrismaClient,
   ) {}
 
   async register(input: RegisterInput): Promise<PublicUser> {
@@ -127,5 +138,94 @@ export class AuthService {
       return;
     }
     await this.refreshTokenRepository.revokeByHash(hashToken(rawRefreshToken));
+  }
+
+  async refresh(rawRefreshToken: string, userAgent?: string): Promise<RefreshResult> {
+    const presentedHash = hashToken(rawRefreshToken);
+
+    const pending = await this.prisma.$transaction(async (tx) => {
+      await this.refreshTokenRepository.lockForRotation(presentedHash, tx);
+      const row = await this.refreshTokenRepository.findByHash(presentedHash, tx);
+      if (!row || !isLive(row)) {
+        return this.classifyNonLive(row, tx);
+      }
+
+      const user = await this.userRepository.findById(row.userId, tx);
+      if (!user || !user.isActive || !user.emailVerifiedAt) {
+        await this.refreshTokenRepository.revokeByHash(presentedHash, tx);
+        return { outcome: 'reject' as const };
+      }
+
+      const successorRaw = generateToken();
+      const successorHash = hashToken(successorRaw);
+      const claimed = await this.refreshTokenRepository.claimRotation(presentedHash, successorHash, tx);
+      if (claimed !== 1) {
+        const again = await this.refreshTokenRepository.findByHash(presentedHash, tx);
+        return this.classifyNonLive(again, tx);
+      }
+
+      await this.refreshTokenRepository.create(
+        {
+          userId: user.id,
+          tokenHash: successorHash,
+          expiresAt: new Date(Date.now() + env.REFRESH_TOKEN_TTL_SECONDS * 1000),
+          userAgent,
+        },
+        tx,
+      );
+
+      return { outcome: 'rotated_pending' as const, user, refreshToken: successorRaw };
+    });
+
+    if (pending.outcome !== 'rotated_pending') {
+      return pending;
+    }
+
+    try {
+      const accessToken = await signAccessToken({
+        sub: pending.user.id,
+        email: pending.user.email,
+        systemRole: pending.user.systemRole,
+      });
+      return {
+        outcome: 'rotated',
+        user: toPublicUser(pending.user),
+        accessToken,
+        refreshToken: pending.refreshToken,
+      };
+    } catch {
+      return { outcome: 'sign_failed' };
+    }
+  }
+
+  private async classifyNonLive(
+    row: RefreshToken | null,
+    tx: Parameters<RefreshTokenRepository['findByHash']>[1],
+  ): Promise<{ outcome: 'overlap' } | { outcome: 'reject' }> {
+    if (!row || row.expiresAt <= new Date()) {
+      return { outcome: 'reject' };
+    }
+    if (row.revokedAt && row.replacedByHash === null) {
+      return { outcome: 'reject' };
+    }
+    if (!row.replacedByHash) {
+      return { outcome: 'reject' };
+    }
+
+    const successor = await this.refreshTokenRepository.findByHash(row.replacedByHash, tx);
+    if (!successor) {
+      return { outcome: 'reject' };
+    }
+    if (isLive(successor)) {
+      return { outcome: 'overlap' };
+    }
+    if (successor.revokedAt && successor.replacedByHash === null) {
+      return { outcome: 'reject' };
+    }
+    if (successor.replacedByHash) {
+      await this.refreshTokenRepository.revokeLiveLeafOfChain(row, tx);
+      return { outcome: 'reject' };
+    }
+    return { outcome: 'reject' };
   }
 }

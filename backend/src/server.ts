@@ -7,6 +7,7 @@ import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
 import { redis } from './lib/redis.js';
 import { createAuthRateLimit } from './middleware/authRateLimit.js';
+import { createRequireAccessToken } from './middleware/requireAccessToken.js';
 import { EmailVerificationTokenRepository } from './repositories/emailVerificationTokenRepository.js';
 import { HealthRepository } from './repositories/healthRepository.js';
 import { RefreshTokenRepository } from './repositories/refreshTokenRepository.js';
@@ -32,12 +33,14 @@ const authService = new AuthService(
       logger.warn({ err }, 'verification email failed');
     }),
   new RefreshTokenRepository(prisma),
+  prisma,
 );
 const authController = new AuthController(authService, emailVerificationService);
 const app = createApp({
   healthController,
   authController,
   authRateLimit: env.NODE_ENV === 'test' ? undefined : createAuthRateLimit(redis),
+  requireAccessToken: createRequireAccessToken(userRepository),
 });
 
 const server = app.listen(env.PORT, '0.0.0.0', () => {

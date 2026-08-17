@@ -7,9 +7,10 @@ export function createV1Router(
   healthController: HealthController,
   authController: AuthController,
   authRateLimit?: RequestHandler,
+  requireAccessToken?: RequestHandler,
 ): Router {
   const router = Router();
   router.get('/health', healthController.getHealth);
-  router.use('/auth', createAuthRouter(authController, authRateLimit));
+  router.use('/auth', createAuthRouter(authController, authRateLimit, requireAccessToken));
   return router;
 }

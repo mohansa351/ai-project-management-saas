@@ -1,3 +1,4 @@
+import type { PublicUser } from '../services/authService.js';
 import type { Logger } from 'pino';
 
 declare global {
@@ -5,6 +6,7 @@ declare global {
     interface Request {
       requestId: string;
       log: Logger;
+      user?: PublicUser;
     }
   }
 }

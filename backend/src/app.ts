@@ -14,9 +14,15 @@ export type AppControllers = {
   healthController: HealthController;
   authController: AuthController;
   authRateLimit?: RequestHandler;
+  requireAccessToken?: RequestHandler;
 };
 
-export function createApp({ healthController, authController, authRateLimit }: AppControllers): Express {
+export function createApp({
+  healthController,
+  authController,
+  authRateLimit,
+  requireAccessToken,
+}: AppControllers): Express {
   const app = express();
   app.set('trust proxy', 1);
 
@@ -32,7 +38,7 @@ export function createApp({ healthController, authController, authRateLimit }: A
   app.use(cookieParser());
 
   app.get('/health', healthController.getHealth);
-  app.use('/api/v1', createV1Router(healthController, authController, authRateLimit));
+  app.use('/api/v1', createV1Router(healthController, authController, authRateLimit, requireAccessToken));
 
   if (env.NODE_ENV === 'test') {
     app.get('/__test/error', () => {

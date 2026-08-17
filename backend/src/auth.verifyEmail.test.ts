@@ -100,6 +100,7 @@ function buildApp(userRepo: MockUserRepo, tokenRepo: MockTokenRepo, emailProvide
       userRepo as unknown as UserRepository,
       async () => undefined,
       stubRefreshRepo(),
+      fakePrisma(),
     ),
     new EmailVerificationService(
       userRepo as unknown as UserRepository,

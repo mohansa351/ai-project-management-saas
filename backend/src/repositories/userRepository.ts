@@ -31,6 +31,10 @@ export class UserRepository {
     return this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   }
 
+  async findById(id: string, client: PrismaClientOrTx = this.prisma): Promise<User | null> {
+    return client.user.findUnique({ where: { id } });
+  }
+
   async markEmailVerified(id: string, client: PrismaClientOrTx = this.prisma): Promise<User> {
     return client.user.update({
       where: { id },

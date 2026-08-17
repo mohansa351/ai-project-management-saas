@@ -1,7 +1,8 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { AppError } from '../lib/http/appError.js';
-import { success } from '../lib/http/envelope.js';
+import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from '../lib/http/authErrors.js';
+import { failure, success } from '../lib/http/envelope.js';
 import {
   REFRESH_COOKIE_NAME,
   clearRefreshCookieOptions,
@@ -39,6 +40,16 @@ const resendVerificationBodySchema = z.object({
 const GENERIC_RESEND_MESSAGE =
   'If an account with that email exists and needs verification, a new link has been sent.';
 
+function rawRefreshCookie(req: Request): string | undefined {
+  const cookie = req.cookies?.[REFRESH_COOKIE_NAME];
+  const raw = Array.isArray(cookie) ? cookie[0] : cookie;
+  return typeof raw === 'string' ? raw : undefined;
+}
+
+function sessionUnauthorized(): AppError {
+  return new AppError('AUTH_UNAUTHORIZED', AUTH_SESSION_UNAUTHORIZED_MESSAGE, 401);
+}
+
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -69,11 +80,42 @@ export class AuthController {
   };
 
   logout = async (req: Request, res: Response): Promise<void> => {
-    const cookie = req.cookies?.[REFRESH_COOKIE_NAME];
-    const raw = Array.isArray(cookie) ? cookie[0] : cookie;
-    await this.authService.logout(typeof raw === 'string' ? raw : undefined);
+    await this.authService.logout(rawRefreshCookie(req));
     res.clearCookie(REFRESH_COOKIE_NAME, clearRefreshCookieOptions());
     res.status(200).json(success({ message: 'Logged out.' }));
+  };
+
+  refresh = async (req: Request, res: Response): Promise<void> => {
+    const raw = rawRefreshCookie(req);
+    if (!raw) {
+      throw sessionUnauthorized();
+    }
+    const userAgentHeader = req.get('user-agent');
+    const result = await this.authService.refresh(
+      raw,
+      userAgentHeader ? userAgentHeader.slice(0, 512) : undefined,
+    );
+    if (result.outcome === 'rotated') {
+      res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, refreshCookieOptions());
+      res.status(200).json(success({ accessToken: result.accessToken, user: result.user }));
+      return;
+    }
+    if (result.outcome === 'overlap') {
+      res.status(401).json(failure('AUTH_UNAUTHORIZED', AUTH_SESSION_UNAUTHORIZED_MESSAGE));
+      return;
+    }
+    res.clearCookie(REFRESH_COOKIE_NAME, clearRefreshCookieOptions());
+    if (result.outcome === 'sign_failed') {
+      throw new AppError('INTERNAL_ERROR', 'An unexpected error occurred.', 500);
+    }
+    res.status(401).json(failure('AUTH_UNAUTHORIZED', AUTH_SESSION_UNAUTHORIZED_MESSAGE));
+  };
+
+  me = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) {
+      throw sessionUnauthorized();
+    }
+    res.status(200).json(success({ user: req.user }));
   };
 
   verifyEmail = async (req: Request, res: Response): Promise<void> => {
