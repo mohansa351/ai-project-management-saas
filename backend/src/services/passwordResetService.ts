@@ -65,7 +65,7 @@ export class PasswordResetService {
     const tokenHash = hashToken(rawToken);
     const passwordHash = await hashPassword(password);
 
-    await this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const record = await this.tokenRepository.findValidByHash(tokenHash, tx);
       if (!record) {
         throw invalidResetToken();
@@ -76,7 +76,7 @@ export class PasswordResetService {
       const user = await this.userRepository.findById(record.userId, tx);
       if (!user || !user.isActive) {
         await this.tokenRepository.markUsedIfActive(record.id, tx);
-        throw invalidResetToken();
+        return 'inactive' as const;
       }
 
       const usedCount = await this.tokenRepository.markUsedIfActive(record.id, tx);
@@ -87,6 +87,11 @@ export class PasswordResetService {
       await this.tokenRepository.invalidateUnusedForUser(user.id, tx);
       await this.userRepository.updatePasswordAndBumpEpoch(user.id, passwordHash, tx);
       await this.refreshTokenRepository.revokeAllLiveForUser(user.id, tx);
+      return 'ok' as const;
     });
+
+    if (outcome === 'inactive') {
+      throw invalidResetToken();
+    }
   }
 }

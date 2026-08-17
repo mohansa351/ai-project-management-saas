@@ -47,6 +47,21 @@ function serialPrisma(): PrismaClient {
   } as unknown as PrismaClient;
 }
 
+/** Commits callback mutations only when the callback resolves. Throws restore `snapshot`. */
+function rollbackAwarePrisma(snapshot: () => unknown, restore: (state: unknown) => void): PrismaClient {
+  return {
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => {
+      const state = snapshot();
+      try {
+        return await fn({});
+      } catch (err) {
+        restore(state);
+        throw err;
+      }
+    }),
+  } as unknown as PrismaClient;
+}
+
 function storedUser(overrides: Partial<User> = {}): User {
   return {
     id: 'user_1',
@@ -416,7 +431,7 @@ describe('POST /api/v1/auth/reset-password', () => {
     expect(harness.refreshStore.get(hashToken(raw))?.revokedAt).not.toBeNull();
   });
 
-  it('returns AUTH_TOKEN_INVALID for reused, expired, unknown, and inactive leftover tokens', async () => {
+  it('returns AUTH_TOKEN_INVALID for reused, expired, and unknown tokens', async () => {
     const harness = await buildHarness();
     const token = await issueToken(harness);
     await request(harness.app).post('/api/v1/auth/reset-password').send({ token, password: NEW_PASSWORD }).expect(200);
@@ -448,8 +463,11 @@ describe('POST /api/v1/auth/reset-password', () => {
       .expect(400);
     expect(expired.body.error.code).toBe('AUTH_TOKEN_INVALID');
     expect(expiredHarness.user.sessionEpoch).toBe(0);
+  });
 
-    const inactiveHarness = await buildHarness({ isActive: false });
+  it('consumes an inactive leftover token even when AUTH_TOKEN_INVALID is returned (rollback-aware tx)', async () => {
+    const passwordHash = await hashPassword(OLD_PASSWORD);
+    const user = storedUser({ isActive: false, passwordHash, emailVerifiedAt: now, sessionEpoch: 0 });
     const inactiveToken = 'b'.repeat(64);
     const leftover: PasswordResetToken = {
       id: 'leftover',
@@ -459,14 +477,69 @@ describe('POST /api/v1/auth/reset-password', () => {
       usedAt: null,
       createdAt: now,
     };
-    inactiveHarness.resetStore.set(leftover.tokenHash, leftover);
-    const inactive = await request(inactiveHarness.app)
+    const resetStore: ResetStore = new Map([[leftover.tokenHash, leftover]]);
+    const refreshStore: RefreshStore = new Map();
+    const liveRefresh = seedRefresh(refreshStore, hashToken('still-live'));
+
+    const snapshot = () => ({
+      usedAt: leftover.usedAt,
+      passwordHash: user.passwordHash,
+      sessionEpoch: user.sessionEpoch,
+      emailVerifiedAt: user.emailVerifiedAt,
+      refreshRevokedAt: liveRefresh.revokedAt,
+    });
+    const restore = (state: unknown) => {
+      const s = state as ReturnType<typeof snapshot>;
+      leftover.usedAt = s.usedAt;
+      user.passwordHash = s.passwordHash;
+      user.sessionEpoch = s.sessionEpoch;
+      user.emailVerifiedAt = s.emailVerifiedAt;
+      liveRefresh.revokedAt = s.refreshRevokedAt;
+    };
+
+    const prisma = rollbackAwarePrisma(snapshot, restore);
+    const resetRepo = memoryResetRepo(resetStore);
+    const refreshRepo = memoryRefreshRepo(refreshStore);
+    const userRepository = {
+      findByEmail: jest.fn(async () => user),
+      findById: jest.fn(async () => user),
+      casSessionEpoch: jest.fn(async () => 1),
+      updatePasswordAndBumpEpoch: jest.fn(async (_id: string, nextHash: string) => {
+        user.passwordHash = nextHash;
+        user.sessionEpoch += 1;
+        return user;
+      }),
+    } as unknown as UserRepository;
+    const authController = new AuthController(
+      new AuthService(userRepository, async () => undefined, refreshRepo, prisma),
+      new EmailVerificationService(userRepository, stubEmailTokens(), { send: jest.fn(async () => undefined) }, prisma),
+      new PasswordResetService(userRepository, resetRepo, refreshRepo, { send: jest.fn(async () => undefined) }, prisma),
+    );
+    const app = createApp({ healthController: mockHealth(), authController });
+
+    const first = await request(app)
       .post('/api/v1/auth/reset-password')
       .send({ token: inactiveToken, password: NEW_PASSWORD })
       .expect(400);
-    expect(inactive.body.error.code).toBe('AUTH_TOKEN_INVALID');
+
+    expect(first.body.error.code).toBe('AUTH_TOKEN_INVALID');
+    expect(first.body.error.message).toBe(RESET_INVALID);
     expect(leftover.usedAt).not.toBeNull();
-    expect(inactiveHarness.user.sessionEpoch).toBe(0);
+    expect(user.passwordHash).toBe(passwordHash);
+    expect(user.sessionEpoch).toBe(0);
+    expect(user.emailVerifiedAt).toEqual(now);
+    expect(liveRefresh.revokedAt).toBeNull();
+    expect(await verifyPassword(OLD_PASSWORD, user.passwordHash)).toBe(true);
+
+    user.isActive = true;
+    const second = await request(app)
+      .post('/api/v1/auth/reset-password')
+      .send({ token: inactiveToken, password: NEW_PASSWORD })
+      .expect(400);
+    expect(second.body.error.code).toBe('AUTH_TOKEN_INVALID');
+    expect(user.passwordHash).toBe(passwordHash);
+    expect(user.sessionEpoch).toBe(0);
+    expect(liveRefresh.revokedAt).toBeNull();
   });
 
   it('returns VALIDATION_ERROR for empty token or short password', async () => {
