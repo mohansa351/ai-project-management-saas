@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bell, Menu, User } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -15,6 +16,7 @@ import {
 } from '@/components/ui/sheet';
 import { primaryNavItems } from '@/components/shell/nav-items';
 import { Sidebar } from '@/components/shell/sidebar';
+import { logoutSession } from '@/features/auth/session-client';
 import { cn } from '@/lib/utils';
 
 type TopbarProps = {
@@ -31,12 +33,28 @@ function titleFromPath(pathname: string): string {
 
 export function Topbar({ title, className }: TopbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const resolvedTitle = title ?? titleFromPath(pathname);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMobileNavOpen(false);
+    setUserMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!userMenuOpen) return undefined;
+    function onPointer(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onPointer);
+    return () => document.removeEventListener('mousedown', onPointer);
+  }, [userMenuOpen]);
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return undefined;
@@ -101,15 +119,50 @@ export function Topbar({ title, className }: TopbarProps) {
         >
           <Bell className="size-5" />
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="User menu"
-          data-testid="user-menu"
-        >
-          <User className="size-5" />
-        </Button>
+        <div className="relative" ref={menuRef}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="User menu"
+            aria-expanded={userMenuOpen}
+            aria-haspopup="menu"
+            data-testid="user-menu"
+            onClick={() => setUserMenuOpen((open) => !open)}
+          >
+            <User className="size-5" />
+          </Button>
+          {userMenuOpen ? (
+            <div
+              role="menu"
+              data-testid="user-menu-panel"
+              className="absolute right-0 z-20 mt-1 min-w-44 rounded-md border border-border bg-card py-1 shadow-sm"
+            >
+              <Link
+                href="/settings/security"
+                role="menuitem"
+                className="block px-3 py-2 text-sm text-foreground hover:bg-muted"
+                onClick={() => setUserMenuOpen(false)}
+              >
+                Security
+              </Link>
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="logout-button"
+                className="block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted disabled:opacity-50"
+                disabled={loggingOut}
+                onClick={async () => {
+                  setLoggingOut(true);
+                  await logoutSession();
+                  router.replace('/login');
+                }}
+              >
+                {loggingOut ? 'Signing out…' : 'Logout'}
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
     </header>
   );

@@ -10,6 +10,7 @@ import AppShellLayout from '@/app/(app)/layout';
 import HomePage from '@/app/page';
 import { AppShell } from '@/components/shell/app-shell';
 import { primaryNavItems } from '@/components/shell/nav-items';
+import { useSessionStore } from '@/features/auth/session-store';
 import { mockPathname, mockRedirect } from '@/test/navigation-mock';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -231,7 +232,21 @@ describe('shell breakpoints matrix', () => {
     expect(screen.getByTestId('topbar-title')).toHaveTextContent('Projects');
   });
 
-  it('(app) layout wraps children with AppShell', () => {
+  it('(app) layout wraps children with AppShell when authenticated', () => {
+    useSessionStore.setState({
+      status: 'authenticated',
+      accessToken: 'tok',
+      user: {
+        id: '1',
+        email: 'ada@example.com',
+        name: 'Ada',
+        isActive: true,
+        emailVerifiedAt: 't',
+        systemRole: 'USER',
+        createdAt: 't',
+        updatedAt: 't',
+      },
+    });
     render(
       <AppShellLayout>
         <p data-testid="child">inside</p>

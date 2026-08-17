@@ -1,12 +1,17 @@
 import type { ReactNode } from 'react';
 
+import { AuthGate } from '@/features/auth/components/auth-gate';
 import { AppShell } from '@/components/shell/app-shell';
 
-/** App chrome stub layout — auth gates land in Epic 2. */
+/** Authenticated chrome — client AuthGate restores the HttpOnly session via refresh. */
 export default function AppShellLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AuthGate>
+      <AppShell>{children}</AppShell>
+    </AuthGate>
+  );
 }

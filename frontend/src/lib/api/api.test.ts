@@ -42,12 +42,23 @@ describe('API rewrite matrix', () => {
     await apiFetch('/health');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url] = fetchMock.mock.calls[0] as [string, RequestInit?];
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit?];
     expect(url).toBe('/api/v1/health');
     expect(url.startsWith('/api/v1')).toBe(true);
     expect(url).not.toMatch(/^https?:\/\//);
     expect(url).not.toContain('localhost:4000');
     expect(url).not.toContain('NEXT_PUBLIC');
+    expect(init?.credentials).toBe('include');
+  });
+
+  it('forces credentials include even if the caller passes omit', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiFetch('/health', { credentials: 'omit' });
+
+    const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(requestInit.credentials).toBe('include');
   });
 
   it('does not double /api/v1 when caller already includes the prefix', async () => {

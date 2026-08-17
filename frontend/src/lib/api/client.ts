@@ -17,6 +17,31 @@ export type ApiErrorEnvelope = {
 
 export type ApiEnvelope<T> = ApiSuccessEnvelope<T> | ApiErrorEnvelope;
 
+export type RecoverSession = 'always' | 'never' | 'if-access-expired';
+
+export type ApiFetchOptions = {
+  skipAuth?: boolean;
+  recoverSession?: RecoverSession;
+  alreadyRecovered?: boolean;
+};
+
+export type ApiFetchAuthHooks = {
+  getAccessToken: () => string | null;
+  shouldAttachBearer: (resolvedPath: string) => boolean;
+  recoverUnauthorized: (args: {
+    path: string;
+    init: RequestInit | undefined;
+    options: ApiFetchOptions;
+    response: Response;
+  }) => Promise<Response | null>;
+};
+
+let authHooks: ApiFetchAuthHooks | null = null;
+
+export function configureApiFetchAuth(hooks: ApiFetchAuthHooks | null): void {
+  authHooks = hooks;
+}
+
 /**
  * Build a same-origin `/api/v1…` path and reject traversal/escape outside that prefix.
  */
@@ -60,27 +85,64 @@ function mergeHeaders(init?: HeadersInit): Headers {
   return headers;
 }
 
+function attachAuthorization(
+  headers: Headers,
+  resolvedPath: string,
+  options: ApiFetchOptions | undefined,
+): void {
+  headers.delete('Authorization');
+  if (options?.skipAuth || !authHooks) {
+    return;
+  }
+  if (!authHooks.shouldAttachBearer(resolvedPath)) {
+    return;
+  }
+  const token = authHooks.getAccessToken();
+  if (!token) {
+    return;
+  }
+  headers.set('Authorization', `Bearer ${token}`);
+}
+
 /**
  * Same-origin fetch helper for Express via Next rewrites.
  * Always uses relative `/api/v1` — never absolute API hosts or NEXT_PUBLIC_* URLs.
+ * Always sends cookies (`credentials: 'include'`). Callers cannot opt out.
  */
 export async function apiFetch(
   path: string,
   init?: RequestInit,
+  options?: ApiFetchOptions,
 ): Promise<Response> {
   const url = resolveApiPath(path);
+  const headers = mergeHeaders(init?.headers);
+  attachAuthorization(headers, url, options);
 
-  return fetch(url, {
+  const response = await fetch(url, {
     ...init,
-    headers: mergeHeaders(init?.headers),
+    credentials: 'include',
+    headers,
   });
+
+  if (response.status !== 401 || options?.alreadyRecovered || !authHooks) {
+    return response;
+  }
+
+  const recovered = await authHooks.recoverUnauthorized({
+    path,
+    init,
+    options: options ?? {},
+    response,
+  });
+  return recovered ?? response;
 }
 
 export async function apiJson<T>(
   path: string,
   init?: RequestInit,
+  options?: ApiFetchOptions,
 ): Promise<ApiEnvelope<T>> {
-  const response = await apiFetch(path, init);
+  const response = await apiFetch(path, init, options);
   const text = await response.text();
 
   if (!text.trim()) {
