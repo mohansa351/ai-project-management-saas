@@ -2,7 +2,7 @@ import { env } from './config/env.js';
 import { createApp } from './app.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
-import { ConsoleEmailProvider } from './lib/email/emailProvider.js';
+import { createEmailProvider } from './lib/email/emailProvider.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
 import { redis } from './lib/redis.js';
@@ -22,7 +22,18 @@ const healthController = new HealthController(
   new HealthService(new HealthRepository(prisma, redis)),
 );
 const userRepository = new UserRepository(prisma);
-const emailProvider = new ConsoleEmailProvider();
+const emailProvider = createEmailProvider(
+  env.SMTP_HOST
+    ? {
+        host: env.SMTP_HOST,
+        port: env.SMTP_PORT,
+        secure: env.SMTP_SECURE,
+        from: env.EMAIL_FROM,
+        user: env.SMTP_USER,
+        pass: env.SMTP_PASS,
+      }
+    : undefined,
+);
 const refreshTokenRepository = new RefreshTokenRepository(prisma);
 const passwordResetTokenRepository = new PasswordResetTokenRepository(prisma);
 const emailVerificationService = new EmailVerificationService(

@@ -56,6 +56,14 @@ function storedUser(overrides: Partial<User> = {}): User {
   };
 }
 
+function extractVerificationToken(body: string): string {
+  const match = body.match(/\/verify-email\?token=([a-f0-9]{64})/);
+  if (!match?.[1]) {
+    throw new Error('verification token missing from mail body');
+  }
+  return match[1];
+}
+
 function stubRefreshRepo(): RefreshTokenRepository {
   return {
     create: jest.fn(async () => ({
@@ -196,7 +204,8 @@ describe('POST /api/v1/auth/register', () => {
     // breaking the TTL-to-milliseconds math: derive the raw token from the mocked mail body
     // and cross-check it against what was actually persisted.
     const sentBody = send.mock.calls[0]?.[0].body ?? '';
-    const rawTokenSent = sentBody.split(': ').pop() ?? '';
+    const rawTokenSent = extractVerificationToken(sentBody);
+    expect(sentBody).toContain(`${env.CORS_ORIGIN}/verify-email?token=${rawTokenSent}`);
     const persistedToken = (tokenRepository.create as jest.Mock).mock.calls[0]?.[0] as {
       tokenHash: string;
       expiresAt: Date;

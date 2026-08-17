@@ -39,10 +39,12 @@ export class EmailVerificationService {
       );
     });
 
+    const verifyUrl = `${env.CORS_ORIGIN}/verify-email?token=${encodeURIComponent(rawToken)}`;
     await this.emailProvider.send({
       to: user.email,
       subject: 'Verify your email',
-      body: `Use this token to verify your email: ${rawToken}`,
+      body: `Verify your email by opening this link:\n${verifyUrl}`,
+      html: `<p>Verify your email by clicking <a href="${verifyUrl}">this verification link</a>.</p>`,
       type: 'verification',
     });
   }

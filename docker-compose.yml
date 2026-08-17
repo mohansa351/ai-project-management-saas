@@ -47,11 +47,22 @@ services:
       CORS_ORIGIN: http://localhost:3000
       JWT_ACCESS_SECRET: change-me-access
       COOKIE_SECURE: 'false'
+      SMTP_HOST: mailpit
+      SMTP_PORT: '1025'
+      EMAIL_FROM: noreply@localhost
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - '1025:1025'
+      - '8025:8025'
 
   frontend:
     build:

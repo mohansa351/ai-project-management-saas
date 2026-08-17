@@ -119,3 +119,36 @@ describe('JWT and cookie session env', () => {
     expect(loadEnv({ ...productionBase, COOKIE_SECURE: 'true' }).COOKIE_SECURE).toBe(true);
   });
 });
+
+describe('SMTP mail env', () => {
+  it('leaves SMTP_HOST unset and defaults port/from when SMTP is not configured', () => {
+    const env = loadEnv({ ...requiredVars });
+    expect(env.SMTP_HOST).toBeUndefined();
+    expect(env.SMTP_PORT).toBe(1025);
+    expect(env.SMTP_SECURE).toBe(false);
+    expect(env.EMAIL_FROM).toBe('noreply@localhost');
+  });
+
+  it('treats blank SMTP_HOST as unset so tests can keep the console fallback', () => {
+    const env = loadEnv({ ...requiredVars, SMTP_HOST: '' });
+    expect(env.SMTP_HOST).toBeUndefined();
+  });
+
+  it('loads a non-Mailpit SMTP host independently of the Mailpit defaults', () => {
+    const env = loadEnv({
+      ...requiredVars,
+      SMTP_HOST: 'smtp.example.com',
+      SMTP_PORT: '587',
+      SMTP_SECURE: 'true',
+      SMTP_USER: 'apm',
+      SMTP_PASS: 'secret',
+      EMAIL_FROM: 'noreply@example.com',
+    });
+    expect(env.SMTP_HOST).toBe('smtp.example.com');
+    expect(env.SMTP_PORT).toBe(587);
+    expect(env.SMTP_SECURE).toBe(true);
+    expect(env.SMTP_USER).toBe('apm');
+    expect(env.SMTP_PASS).toBe('secret');
+    expect(env.EMAIL_FROM).toBe('noreply@example.com');
+  });
+});

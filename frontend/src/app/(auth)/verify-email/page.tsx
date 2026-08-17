@@ -104,7 +104,8 @@ function VerifyEmailForm() {
         </p>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Check the mock mail log for a verification link, or request a new one below.
+          Check Mailpit at http://localhost:8025 for a verification email, or request a new one
+          below.
         </p>
       )}
       {verifyError ? <div className="mt-4"><AuthFormError message={verifyError.message} code={verifyError.code} /></div> : null}

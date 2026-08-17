@@ -32,6 +32,21 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().trim().min(1),
   EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(129600).default(1440),
   PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(1440).default(60),
+  SMTP_HOST: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().trim().min(1).optional(),
+  ),
+  SMTP_PORT: z.coerce.number().int().positive().max(65535).default(1025),
+  SMTP_SECURE: envBoolean(false),
+  SMTP_USER: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
+  SMTP_PASS: z.preprocess(
+    (value) => (typeof value === 'string' && value === '' ? undefined : value),
+    z.string().optional(),
+  ),
+  EMAIL_FROM: z.string().trim().min(1).default('noreply@localhost'),
   JWT_ACCESS_SECRET: z.string().trim().min(1),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().max(3600).default(900),
   REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().max(MAX_REFRESH_TTL_SECONDS).default(604800),
