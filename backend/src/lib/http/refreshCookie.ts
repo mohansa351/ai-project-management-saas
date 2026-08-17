@@ -20,5 +20,6 @@ export function clearRefreshCookieOptions(secure = env.COOKIE_SECURE): CookieOpt
     path: '/api/v1',
     secure,
     expires: new Date(0),
+    maxAge: 0,
   };
 }

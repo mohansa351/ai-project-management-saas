@@ -15,5 +15,11 @@ describe('refresh cookie options', () => {
     expect(secure.secure).toBe(true);
     expect(clearRefreshCookieOptions(true).secure).toBe(true);
     expect(clearRefreshCookieOptions(true).expires).toEqual(new Date(0));
+    expect(clearRefreshCookieOptions(true).maxAge).toBe(0);
+
+    const fromEnv = refreshCookieOptions();
+    expect(fromEnv.secure).toBe(env.COOKIE_SECURE);
+    expect(clearRefreshCookieOptions().secure).toBe(env.COOKIE_SECURE);
+    expect(clearRefreshCookieOptions().maxAge).toBe(0);
   });
 });

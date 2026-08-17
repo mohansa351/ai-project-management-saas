@@ -48,7 +48,9 @@ const degradedReadiness: Readiness = {
 };
 
 describe('health envelopes', () => {
-  it('returns success envelope with readiness fields on GET /health and /api/v1/health', async () => {
+  it('trusts a single proxy hop so rate-limit keys can use X-Forwarded-For', () => {
+    expect(healthApp().get('trust proxy')).toBe(1);
+  });  it('returns success envelope with readiness fields on GET /health and /api/v1/health', async () => {
     const app = healthApp();
 
     for (const path of ['/health', '/api/v1/health']) {

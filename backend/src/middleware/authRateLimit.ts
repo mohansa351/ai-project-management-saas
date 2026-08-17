@@ -18,12 +18,19 @@ async function ensureConnected(redis: RedisRateLimitClient): Promise<void> {
   if (redis.isOpen) {
     return;
   }
-  await Promise.race([
-    redis.connect(),
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('redis connect timeout')), CONNECT_TIMEOUT_MS);
-    }),
-  ]);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      redis.connect(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('redis connect timeout')), CONNECT_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
 }
 
 export function createAuthRateLimit(redis: RedisRateLimitClient) {

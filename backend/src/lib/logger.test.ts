@@ -27,6 +27,8 @@ describe('logger redaction', () => {
         authorization: 'Bearer jwt-should-not-leak',
         JWT_ACCESS_SECRET: 'env-secret-should-not-leak',
         cookie: 'refresh_token=cookie-refresh-should-not-leak',
+        headers: { cookie: 'refresh_token=cookie-refresh-should-not-leak' },
+        req: { headers: { cookie: 'refresh_token=cookie-refresh-should-not-leak' } },
       },
       'session debug',
     );

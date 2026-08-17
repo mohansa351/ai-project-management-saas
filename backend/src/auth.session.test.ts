@@ -10,6 +10,11 @@ import { HealthController } from './controllers/healthController.js';
 import { AppError } from './lib/http/appError.js';
 import { hashPassword } from './lib/password.js';
 import { hashToken } from './lib/token.js';
+import {
+  AUTH_RATE_LIMIT_MAX,
+  createAuthRateLimit,
+  type RedisRateLimitClient,
+} from './middleware/authRateLimit.js';
 import type { EmailVerificationTokenRepository } from './repositories/emailVerificationTokenRepository.js';
 import type { RefreshTokenRepository } from './repositories/refreshTokenRepository.js';
 import type { UserRepository } from './repositories/userRepository.js';
@@ -353,6 +358,7 @@ describe('POST /api/v1/auth/login and logout', () => {
     expect(cleared).toMatch(/SameSite=Lax/i);
     expect(cleared).toMatch(/Path=\/api\/v1/i);
     expect(cleared).toMatch(/refresh_token=;/i);
+    expect(cleared).toMatch(/Expires=Thu, 01 Jan 1970/i);
   });
 
   it('returns 200 and still clears the cookie when logout has no matching row', async () => {
@@ -413,5 +419,35 @@ describe('POST /api/v1/auth/login and logout', () => {
       .expect(429);
 
     expect(res.body.error.code).toBe('RATE_LIMITED');
+  });
+
+  it('applies createAuthRateLimit to login and register against a Redis stub', async () => {
+    const incr = jest.fn<RedisRateLimitClient['incr']>(async () => AUTH_RATE_LIMIT_MAX + 1);
+    const redis: RedisRateLimitClient = {
+      isOpen: true,
+      connect: jest.fn(async () => undefined),
+      incr,
+      ttl: jest.fn(async () => 50),
+      expire: jest.fn(async () => 1),
+    };
+    const { app } = sessionApp({ findByEmail: jest.fn() } as unknown as UserRepository, {
+      create: jest.fn(async () => {
+        throw new Error('unused');
+      }),
+      revokeByHash: jest.fn(async () => 0),
+    }, createAuthRateLimit(redis));
+
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'ada@example.com', password: PASSWORD })
+      .expect(429);
+    const register = await request(app)
+      .post('/api/v1/auth/register')
+      .send({ name: 'Ada', email: 'ada@example.com', password: PASSWORD })
+      .expect(429);
+
+    expect(login.body.error.code).toBe('RATE_LIMITED');
+    expect(register.body.error.code).toBe('RATE_LIMITED');
+    expect(incr).toHaveBeenCalled();
   });
 });

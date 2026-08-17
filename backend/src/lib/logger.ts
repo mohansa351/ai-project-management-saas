@@ -13,6 +13,8 @@ export const LOGGER_REDACT_PATHS = [
   'cookie',
   'Cookie',
   'set-cookie',
+  'headers.cookie',
+  'req.headers.cookie',
   'JWT_ACCESS_SECRET',
   '*.accessToken',
   '*.refreshToken',

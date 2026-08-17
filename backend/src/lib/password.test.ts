@@ -1,4 +1,5 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
+import bcrypt from 'bcrypt';
 import { DUMMY_PASSWORD_HASH, hashPassword, verifyLoginPassword, verifyPassword } from './password.js';
 
 describe('password hashing', () => {
@@ -13,14 +14,23 @@ describe('password hashing', () => {
   });
 
   it('still runs bcrypt for unknown and inactive users and never matches the dummy hash', async () => {
+    const compare = jest.spyOn(bcrypt, 'compare');
     await expect(verifyPassword('password1', DUMMY_PASSWORD_HASH)).resolves.toBe(false);
+    compare.mockClear();
     await expect(verifyLoginPassword('password1', null)).resolves.toBe(false);
+    expect(compare).toHaveBeenCalled();
+    expect(compare.mock.calls.some((call) => call[1] === DUMMY_PASSWORD_HASH)).toBe(true);
+
+    compare.mockClear();
     await expect(
       verifyLoginPassword('password1', {
         isActive: false,
         passwordHash: await hashPassword('password1'),
       }),
     ).resolves.toBe(false);
+    expect(compare.mock.calls.some((call) => call[1] === DUMMY_PASSWORD_HASH)).toBe(true);
+
+    compare.mockRestore();
     await expect(
       verifyLoginPassword('password1', {
         isActive: true,
