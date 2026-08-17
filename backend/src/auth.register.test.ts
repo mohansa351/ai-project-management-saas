@@ -14,6 +14,7 @@ import type { UserRepository } from './repositories/userRepository.js';
 import { AuthService, type OnUserRegistered } from './services/authService.js';
 import { EmailVerificationService } from './services/emailVerificationService.js';
 import type { HealthService, Readiness } from './services/healthService.js';
+import type { RefreshTokenRepository } from './repositories/refreshTokenRepository.js';
 
 /** Runs the callback immediately with a sentinel transaction client, mirroring how a mocked
  * repository ignores the tx argument it's passed. */
@@ -53,6 +54,21 @@ function storedUser(overrides: Partial<User> = {}): User {
   };
 }
 
+function stubRefreshRepo(): RefreshTokenRepository {
+  return {
+    create: jest.fn(async () => ({
+      id: 'rt_1',
+      userId: 'user_1',
+      tokenHash: 'hash',
+      expiresAt: new Date(),
+      revokedAt: null,
+      userAgent: null,
+      createdAt: new Date(),
+    })),
+    revokeByHash: jest.fn(async () => 0),
+  } as unknown as RefreshTokenRepository;
+}
+
 function stubTokenRepo(): EmailVerificationTokenRepository {
   return {
     create: jest.fn(async () => ({
@@ -90,7 +106,7 @@ function registerApp(
       logger.warn({ err }, 'verification email failed');
     });
   const authController = new AuthController(
-    new AuthService(userRepository, onUserRegistered),
+    new AuthService(userRepository, onUserRegistered, stubRefreshRepo()),
     emailVerificationService,
   );
   return createApp({

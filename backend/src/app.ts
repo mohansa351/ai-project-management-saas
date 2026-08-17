@@ -1,5 +1,6 @@
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import express, { type Express } from 'express';
+import express, { type Express, type RequestHandler } from 'express';
 import helmet from 'helmet';
 import { env } from './config/env.js';
 import type { AuthController } from './controllers/authController.js';
@@ -12,9 +13,10 @@ import { createV1Router } from './routes/v1/index.js';
 export type AppControllers = {
   healthController: HealthController;
   authController: AuthController;
+  authRateLimit?: RequestHandler;
 };
 
-export function createApp({ healthController, authController }: AppControllers): Express {
+export function createApp({ healthController, authController, authRateLimit }: AppControllers): Express {
   const app = express();
 
   app.use(helmet());
@@ -26,9 +28,10 @@ export function createApp({ healthController, authController }: AppControllers):
   );
   app.use(requestId);
   app.use(express.json());
+  app.use(cookieParser());
 
   app.get('/health', healthController.getHealth);
-  app.use('/api/v1', createV1Router(healthController, authController));
+  app.use('/api/v1', createV1Router(healthController, authController, authRateLimit));
 
   if (env.NODE_ENV === 'test') {
     app.get('/__test/error', () => {

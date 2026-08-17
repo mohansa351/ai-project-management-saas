@@ -23,6 +23,7 @@ model User {
   updatedAt       DateTime   @updatedAt
 
   emailVerificationTokens EmailVerificationToken[]
+  refreshTokens           RefreshToken[]
 
   @@index([email, isActive])
 }
@@ -37,4 +38,18 @@ model EmailVerificationToken {
   createdAt   DateTime  @default(now())
 
   @@index([userId])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([userId, expiresAt])
 }

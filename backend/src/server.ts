@@ -6,8 +6,10 @@ import { ConsoleEmailProvider } from './lib/email/emailProvider.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
 import { redis } from './lib/redis.js';
+import { createAuthRateLimit } from './middleware/authRateLimit.js';
 import { EmailVerificationTokenRepository } from './repositories/emailVerificationTokenRepository.js';
 import { HealthRepository } from './repositories/healthRepository.js';
+import { RefreshTokenRepository } from './repositories/refreshTokenRepository.js';
 import { UserRepository } from './repositories/userRepository.js';
 import { AuthService } from './services/authService.js';
 import { EmailVerificationService } from './services/emailVerificationService.js';
@@ -23,13 +25,20 @@ const emailVerificationService = new EmailVerificationService(
   new ConsoleEmailProvider(),
   prisma,
 );
-const authService = new AuthService(userRepository, (user) =>
-  emailVerificationService.issueAndSend(user).catch((err) => {
-    logger.warn({ err }, 'verification email failed');
-  }),
+const authService = new AuthService(
+  userRepository,
+  (user) =>
+    emailVerificationService.issueAndSend(user).catch((err) => {
+      logger.warn({ err }, 'verification email failed');
+    }),
+  new RefreshTokenRepository(prisma),
 );
 const authController = new AuthController(authService, emailVerificationService);
-const app = createApp({ healthController, authController });
+const app = createApp({
+  healthController,
+  authController,
+  authRateLimit: env.NODE_ENV === 'test' ? undefined : createAuthRateLimit(redis),
+});
 
 const server = app.listen(env.PORT, '0.0.0.0', () => {
   logger.info({ port: env.PORT }, 'API listening');

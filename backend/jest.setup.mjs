@@ -6,3 +6,4 @@ process.env.DATABASE_URL =
   process.env.DATABASE_URL || 'postgresql://apm:apm@127.0.0.1:5432/apm';
 process.env.REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
+process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'test-jwt-access-secret';

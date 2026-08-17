@@ -19,6 +19,8 @@ function mockService(readiness: Readiness): HealthService {
 function stubAuthController(): AuthController {
   return {
     register: jest.fn(),
+    login: jest.fn(),
+    logout: jest.fn(),
     verifyEmail: jest.fn(),
     resendVerification: jest.fn(),
   } as unknown as AuthController;
@@ -215,6 +217,7 @@ describe('env parsing', () => {
         DATABASE_URL: '   ',
         REDIS_URL: 'redis://127.0.0.1:6379',
         CORS_ORIGIN: 'http://localhost:3000',
+        JWT_ACCESS_SECRET: 'test-jwt-access-secret',
       }),
     ).toThrow(/Invalid environment/);
   });

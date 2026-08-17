@@ -45,6 +45,8 @@ services:
       DATABASE_URL: postgresql://apm:apm@postgres:5432/apm
       REDIS_URL: redis://redis:6379
       CORS_ORIGIN: http://localhost:3000
+      JWT_ACCESS_SECRET: change-me-access
+      COOKIE_SECURE: 'false'
     depends_on:
       postgres:
         condition: service_healthy

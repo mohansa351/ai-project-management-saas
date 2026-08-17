@@ -7,6 +7,7 @@ const requiredVars = {
   DATABASE_URL: 'postgresql://apm:apm@localhost:5432/apm',
   REDIS_URL: 'redis://127.0.0.1:6379',
   CORS_ORIGIN: 'http://localhost:3000',
+  JWT_ACCESS_SECRET: 'test-jwt-access-secret',
 } as const;
 
 describe('EMAIL_VERIFICATION_TOKEN_TTL_MINUTES bounds', () => {
@@ -44,5 +45,37 @@ describe('EMAIL_VERIFICATION_TOKEN_TTL_MINUTES bounds', () => {
     expect(() =>
       loadEnv({ ...requiredVars, EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: '10.5' }),
     ).toThrow(/Invalid environment/);
+  });
+});
+
+describe('JWT and cookie session env', () => {
+  it('requires JWT_ACCESS_SECRET', () => {
+    expect(() =>
+      loadEnv({
+        NODE_ENV: 'test',
+        PORT: '4000',
+        DATABASE_URL: requiredVars.DATABASE_URL,
+        REDIS_URL: requiredVars.REDIS_URL,
+        CORS_ORIGIN: requiredVars.CORS_ORIGIN,
+      }),
+    ).toThrow(/Invalid environment/);
+  });
+
+  it('defaults access/refresh TTLs and COOKIE_SECURE', () => {
+    const env = loadEnv({ ...requiredVars });
+    expect(env.ACCESS_TOKEN_TTL_SECONDS).toBe(900);
+    expect(env.REFRESH_TOKEN_TTL_SECONDS).toBe(604800);
+    expect(env.COOKIE_SECURE).toBe(false);
+    expect(env).not.toHaveProperty('JWT_REFRESH_SECRET');
+  });
+
+  it('parses COOKIE_SECURE=true without treating the string as always truthy', () => {
+    expect(loadEnv({ ...requiredVars, COOKIE_SECURE: 'true' }).COOKIE_SECURE).toBe(true);
+    expect(loadEnv({ ...requiredVars, COOKIE_SECURE: 'false' }).COOKIE_SECURE).toBe(false);
+  });
+
+  it('ignores JWT_REFRESH_SECRET even when present', () => {
+    const env = loadEnv({ ...requiredVars, JWT_REFRESH_SECRET: 'should-not-load' });
+    expect(env).not.toHaveProperty('JWT_REFRESH_SECRET');
   });
 });
