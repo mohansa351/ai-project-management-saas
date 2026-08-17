@@ -48,6 +48,25 @@ describe('EMAIL_VERIFICATION_TOKEN_TTL_MINUTES bounds', () => {
   });
 });
 
+describe('PASSWORD_RESET_TOKEN_TTL_MINUTES bounds', () => {
+  it('defaults to 60 when unset', () => {
+    expect(loadEnv({ ...requiredVars }).PASSWORD_RESET_TOKEN_TTL_MINUTES).toBe(60);
+  });
+
+  it('accepts the upper bound (1440 minutes)', () => {
+    expect(loadEnv({ ...requiredVars, PASSWORD_RESET_TOKEN_TTL_MINUTES: '1440' }).PASSWORD_RESET_TOKEN_TTL_MINUTES).toBe(
+      1440,
+    );
+  });
+
+  it('rejects a value above the upper bound, zero, negative, and non-integer', () => {
+    expect(() => loadEnv({ ...requiredVars, PASSWORD_RESET_TOKEN_TTL_MINUTES: '1441' })).toThrow(/Invalid environment/);
+    expect(() => loadEnv({ ...requiredVars, PASSWORD_RESET_TOKEN_TTL_MINUTES: '0' })).toThrow(/Invalid environment/);
+    expect(() => loadEnv({ ...requiredVars, PASSWORD_RESET_TOKEN_TTL_MINUTES: '-1' })).toThrow(/Invalid environment/);
+    expect(() => loadEnv({ ...requiredVars, PASSWORD_RESET_TOKEN_TTL_MINUTES: '1.5' })).toThrow(/Invalid environment/);
+  });
+});
+
 describe('JWT and cookie session env', () => {
   it('requires JWT_ACCESS_SECRET', () => {
     expect(() =>

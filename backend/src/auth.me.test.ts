@@ -14,6 +14,7 @@ import type { RefreshTokenRepository } from './repositories/refreshTokenReposito
 import type { UserRepository } from './repositories/userRepository.js';
 import { AuthService } from './services/authService.js';
 import { EmailVerificationService } from './services/emailVerificationService.js';
+import type { PasswordResetService } from './services/passwordResetService.js';
 import type { HealthService } from './services/healthService.js';
 
 const now = new Date('2026-08-14T00:00:00.000Z');
@@ -27,6 +28,7 @@ function storedUser(overrides: Partial<User> = {}): User {
     isActive: true,
     emailVerifiedAt: now,
     systemRole: 'USER',
+    sessionEpoch: 0,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -62,6 +64,7 @@ function meApp(user: User | null) {
       { send: jest.fn(async () => undefined) },
       fakePrisma(),
     ),
+    { forgot: async () => undefined, reset: async () => undefined } as unknown as PasswordResetService,
   );
   return createApp({
     healthController: new HealthController({

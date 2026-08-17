@@ -13,6 +13,7 @@ import type { EmailVerificationTokenRepository } from './repositories/emailVerif
 import type { UserRepository } from './repositories/userRepository.js';
 import { AuthService, type OnUserRegistered } from './services/authService.js';
 import { EmailVerificationService } from './services/emailVerificationService.js';
+import type { PasswordResetService } from './services/passwordResetService.js';
 import type { HealthService, Readiness } from './services/healthService.js';
 import type { RefreshTokenRepository } from './repositories/refreshTokenRepository.js';
 
@@ -48,6 +49,7 @@ function storedUser(overrides: Partial<User> = {}): User {
     isActive: true,
     emailVerifiedAt: null,
     systemRole: 'USER',
+    sessionEpoch: 0,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -108,6 +110,7 @@ function registerApp(
   const authController = new AuthController(
     new AuthService(userRepository, onUserRegistered, stubRefreshRepo(), fakePrisma()),
     emailVerificationService,
+    { forgot: async () => undefined, reset: async () => undefined } as unknown as PasswordResetService,
   );
   return createApp({
     healthController: mockHealth(),

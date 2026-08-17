@@ -61,4 +61,39 @@ describe('UserRepository', () => {
     await repo.findById('user_1');
     expect(findUnique).toHaveBeenCalledWith({ where: { id: 'user_1' } });
   });
+
+  it('updates password and increments sessionEpoch in one write', async () => {
+    const update = jest.fn<(args: unknown) => Promise<{ id: string; sessionEpoch: number }>>(async () => ({
+      id: 'user_1',
+      sessionEpoch: 1,
+    }));
+    const prisma = { user: { update } } as unknown as PrismaClient;
+    const repo = new UserRepository(prisma);
+    await repo.updatePasswordAndBumpEpoch('user_1', 'new-hash');
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'user_1' },
+      data: {
+        passwordHash: 'new-hash',
+        sessionEpoch: { increment: 1 },
+      },
+    });
+  });
+
+  it('CAS sessionEpoch only when the expected value still matches', async () => {
+    const updateMany = jest.fn<(args: unknown) => Promise<{ count: number }>>(async () => ({ count: 1 }));
+    const prisma = { user: { updateMany } } as unknown as PrismaClient;
+    const repo = new UserRepository(prisma);
+    await expect(repo.casSessionEpoch('user_1', 0)).resolves.toBe(1);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'user_1', sessionEpoch: 0 },
+      data: { sessionEpoch: 0 },
+    });
+  });
+
+  it('CAS sessionEpoch returns 0 when the expected value no longer matches', async () => {
+    const updateMany = jest.fn<(args: unknown) => Promise<{ count: number }>>(async () => ({ count: 0 }));
+    const prisma = { user: { updateMany } } as unknown as PrismaClient;
+    const repo = new UserRepository(prisma);
+    await expect(repo.casSessionEpoch('user_1', 0)).resolves.toBe(0);
+  });
 });

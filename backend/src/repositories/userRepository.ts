@@ -42,6 +42,34 @@ export class UserRepository {
     });
   }
 
+  async updatePasswordAndBumpEpoch(
+    id: string,
+    passwordHash: string,
+    client: PrismaClientOrTx = this.prisma,
+  ): Promise<User> {
+    return client.user.update({
+      where: { id },
+      data: {
+        passwordHash,
+        sessionEpoch: { increment: 1 },
+      },
+    });
+  }
+
+  async casSessionEpoch(
+    id: string,
+    expected: number,
+    client: PrismaClientOrTx = this.prisma,
+  ): Promise<number> {
+    // No-op assignment still row-locks User so a concurrent sessionEpoch increment
+    // cannot commit between refresh claim and successor insert.
+    const result = await client.user.updateMany({
+      where: { id, sessionEpoch: expected },
+      data: { sessionEpoch: expected },
+    });
+    return result.count;
+  }
+
   async create(input: CreateUserInput): Promise<User> {
     try {
       return await this.prisma.user.create({

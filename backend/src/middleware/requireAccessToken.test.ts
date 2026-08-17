@@ -16,6 +16,7 @@ function storedUser(overrides: Partial<User> = {}): User {
     isActive: true,
     emailVerifiedAt: now,
     systemRole: 'USER',
+    sessionEpoch: 0,
     createdAt: now,
     updatedAt: now,
     ...overrides,

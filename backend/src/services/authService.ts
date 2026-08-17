@@ -164,6 +164,11 @@ export class AuthService {
         return this.classifyNonLive(again, tx);
       }
 
+      const cas = await this.userRepository.casSessionEpoch(user.id, user.sessionEpoch, tx);
+      if (cas !== 1) {
+        return { outcome: 'reject' as const };
+      }
+
       await this.refreshTokenRepository.create(
         {
           userId: user.id,

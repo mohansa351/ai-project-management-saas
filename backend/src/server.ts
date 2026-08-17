@@ -10,20 +10,31 @@ import { createAuthRateLimit } from './middleware/authRateLimit.js';
 import { createRequireAccessToken } from './middleware/requireAccessToken.js';
 import { EmailVerificationTokenRepository } from './repositories/emailVerificationTokenRepository.js';
 import { HealthRepository } from './repositories/healthRepository.js';
+import { PasswordResetTokenRepository } from './repositories/passwordResetTokenRepository.js';
 import { RefreshTokenRepository } from './repositories/refreshTokenRepository.js';
 import { UserRepository } from './repositories/userRepository.js';
 import { AuthService } from './services/authService.js';
 import { EmailVerificationService } from './services/emailVerificationService.js';
 import { HealthService } from './services/healthService.js';
+import { PasswordResetService } from './services/passwordResetService.js';
 
 const healthController = new HealthController(
   new HealthService(new HealthRepository(prisma, redis)),
 );
 const userRepository = new UserRepository(prisma);
+const emailProvider = new ConsoleEmailProvider();
+const refreshTokenRepository = new RefreshTokenRepository(prisma);
 const emailVerificationService = new EmailVerificationService(
   userRepository,
   new EmailVerificationTokenRepository(prisma),
-  new ConsoleEmailProvider(),
+  emailProvider,
+  prisma,
+);
+const passwordResetService = new PasswordResetService(
+  userRepository,
+  new PasswordResetTokenRepository(prisma),
+  refreshTokenRepository,
+  emailProvider,
   prisma,
 );
 const authService = new AuthService(
@@ -32,10 +43,10 @@ const authService = new AuthService(
     emailVerificationService.issueAndSend(user).catch((err) => {
       logger.warn({ err }, 'verification email failed');
     }),
-  new RefreshTokenRepository(prisma),
+  refreshTokenRepository,
   prisma,
 );
-const authController = new AuthController(authService, emailVerificationService);
+const authController = new AuthController(authService, emailVerificationService, passwordResetService);
 const app = createApp({
   healthController,
   authController,

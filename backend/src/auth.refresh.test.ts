@@ -13,6 +13,7 @@ import { RefreshTokenRepository } from './repositories/refreshTokenRepository.js
 import type { UserRepository } from './repositories/userRepository.js';
 import { AuthService } from './services/authService.js';
 import { EmailVerificationService } from './services/emailVerificationService.js';
+import type { PasswordResetService } from './services/passwordResetService.js';
 import type { HealthService } from './services/healthService.js';
 
 const now = new Date('2026-08-14T00:00:00.000Z');
@@ -27,6 +28,7 @@ function storedUser(overrides: Partial<User> = {}): User {
     isActive: true,
     emailVerifiedAt: now,
     systemRole: 'USER',
+    sessionEpoch: 0,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -170,21 +172,27 @@ function seedRow(store: Store, overrides: Partial<RefreshToken> & Pick<RefreshTo
   return row;
 }
 
-function refreshApp(user: User | null, store: Store) {
+function refreshApp(user: User | null, store: Store, casCount = 1) {
   const prisma = serialPrisma();
   const refreshTokenRepository = memoryRefreshRepo(store);
+  const casSessionEpoch = jest.fn<(id: string, expected: number, tx?: unknown) => Promise<number>>(
+    async () => casCount,
+  );
   const userRepository = {
     findByEmail: jest.fn(),
     findById: jest.fn(async () => user),
+    casSessionEpoch,
   } as unknown as UserRepository;
   const authController = new AuthController(
     new AuthService(userRepository, async () => undefined, refreshTokenRepository, prisma),
     new EmailVerificationService(userRepository, stubEmailTokens(), { send: jest.fn(async () => undefined) }, prisma),
+    { forgot: async () => undefined, reset: async () => undefined } as unknown as PasswordResetService,
   );
   return {
     app: createApp({ healthController: mockHealth(), authController }),
     store,
     refreshTokenRepository,
+    casSessionEpoch,
   };
 }
 
@@ -453,5 +461,23 @@ describe('POST /api/v1/auth/refresh', () => {
 
     expect(isClearCookie(cookieHeader(res, 'refresh_token'))).toBe(true);
     expect(store.get(independentHash)?.revokedAt).toBeNull();
+  });
+
+  it('skips successor create when sessionEpoch CAS loses to a concurrent reset', async () => {
+    const raw = 'p'.repeat(64);
+    const store: Store = new Map();
+    seedRow(store, { tokenHash: hashToken(raw) });
+    const { app, store: after, casSessionEpoch } = refreshApp(storedUser({ sessionEpoch: 0 }), store, 0);
+
+    const res = await request(app).post('/api/v1/auth/refresh').set('Cookie', `refresh_token=${raw}`).expect(401);
+
+    expect(casSessionEpoch).toHaveBeenCalledWith('user_1', 0, expect.anything());
+
+    expect(res.body.data).toBeUndefined();
+    expect(after.get(hashToken(raw))?.revokedAt).not.toBeNull();
+    const liveSuccessors = [...after.values()].filter(
+      (row) => row.revokedAt === null && row.replacedByHash === null && row.tokenHash !== hashToken(raw),
+    );
+    expect(liveSuccessors).toHaveLength(0);
   });
 });

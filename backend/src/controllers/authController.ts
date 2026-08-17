@@ -10,6 +10,7 @@ import {
 } from '../lib/http/refreshCookie.js';
 import type { AuthService } from '../services/authService.js';
 import type { EmailVerificationService } from '../services/emailVerificationService.js';
+import type { PasswordResetService } from '../services/passwordResetService.js';
 
 const passwordSchema = z
   .string()
@@ -40,6 +41,20 @@ const resendVerificationBodySchema = z.object({
 const GENERIC_RESEND_MESSAGE =
   'If an account with that email exists and needs verification, a new link has been sent.';
 
+const GENERIC_FORGOT_MESSAGE =
+  'If an account with that email exists, a reset link has been sent.';
+
+const RESET_SUCCESS_MESSAGE = 'Password has been reset. Sign in with your new password.';
+
+const forgotPasswordBodySchema = z.object({
+  email: z.string().trim().email(),
+});
+
+const resetPasswordBodySchema = z.object({
+  token: z.string().trim().min(1),
+  password: passwordSchema,
+});
+
 function rawRefreshCookie(req: Request): string | undefined {
   const cookie = req.cookies?.[REFRESH_COOKIE_NAME];
   const raw = Array.isArray(cookie) ? cookie[0] : cookie;
@@ -54,6 +69,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly emailVerificationService: EmailVerificationService,
+    private readonly passwordResetService: PasswordResetService,
   ) {}
 
   register = async (req: Request, res: Response): Promise<void> => {
@@ -134,5 +150,34 @@ export class AuthController {
     }
     await this.emailVerificationService.resend(parsed.data.email);
     res.status(200).json(success({ message: GENERIC_RESEND_MESSAGE }));
+  };
+
+  forgotPassword = async (req: Request, res: Response): Promise<void> => {
+    const parsed = forgotPasswordBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', 'Validation failed', 400, parsed.error.flatten().fieldErrors);
+    }
+    await this.passwordResetService.forgot(parsed.data.email);
+    res.status(200).json(success({ message: GENERIC_FORGOT_MESSAGE }));
+  };
+
+  resetPassword = async (req: Request, res: Response): Promise<void> => {
+    const parsed = resetPasswordBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', 'Validation failed', 400, parsed.error.flatten().fieldErrors);
+    }
+    const cookie = rawRefreshCookie(req);
+    try {
+      await this.passwordResetService.reset(parsed.data.token, parsed.data.password);
+    } catch (err) {
+      if (err instanceof AppError && err.code === 'AUTH_TOKEN_INVALID' && cookie) {
+        res.clearCookie(REFRESH_COOKIE_NAME, clearRefreshCookieOptions());
+      }
+      throw err;
+    }
+    if (cookie) {
+      res.clearCookie(REFRESH_COOKIE_NAME, clearRefreshCookieOptions());
+    }
+    res.status(200).json(success({ message: RESET_SUCCESS_MESSAGE }));
   };
 }

@@ -31,6 +31,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().trim().min(1),
   CORS_ORIGIN: z.string().trim().min(1),
   EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(129600).default(1440),
+  PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(1440).default(60),
   JWT_ACCESS_SECRET: z.string().trim().min(1),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().max(3600).default(900),
   REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().max(MAX_REFRESH_TTL_SECONDS).default(604800),

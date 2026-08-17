@@ -25,6 +25,8 @@ function stubAuthController(): AuthController {
     me: jest.fn(),
     verifyEmail: jest.fn(),
     resendVerification: jest.fn(),
+    forgotPassword: jest.fn(),
+    resetPassword: jest.fn(),
   } as unknown as AuthController;
 }
 

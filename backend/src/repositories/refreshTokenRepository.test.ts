@@ -118,4 +118,20 @@ describe('RefreshTokenRepository', () => {
     await repo.lockForRotation('presented-hash');
     expect(executeRaw).toHaveBeenCalledTimes(1);
   });
+
+  it('revokes all live rows for one user and does not touch another user', async () => {
+    const updateMany = jest.fn<(args: unknown) => Promise<{ count: number }>>(async () => ({ count: 2 }));
+    const prisma = { refreshToken: { updateMany } } as unknown as PrismaClient;
+    const repo = new RefreshTokenRepository(prisma);
+    const count = await repo.revokeAllLiveForUser('user_1');
+    expect(count).toBe(2);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        userId: 'user_1',
+        revokedAt: null,
+        expiresAt: { gt: expect.any(Date) },
+      },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
 });

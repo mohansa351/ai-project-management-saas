@@ -99,4 +99,17 @@ export class RefreshTokenRepository {
     await this.revokeByHash(liveLeafHash, client);
     return liveLeafHash;
   }
+
+  /** Revokes every live unexpired refresh row for a user. Used on password reset, not on replay. */
+  async revokeAllLiveForUser(userId: string, client: PrismaClientOrTx = this.prisma): Promise<number> {
+    const result = await client.refreshToken.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      data: { revokedAt: new Date() },
+    });
+    return result.count;
+  }
 }
