@@ -1,10 +1,12 @@
 import type { PrismaClient, RefreshToken, User } from '@prisma/client';
 import { AppError } from '../lib/http/appError.js';
+import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from '../lib/http/authErrors.js';
 import { signAccessToken } from '../lib/jwt.js';
-import { hashPassword, verifyLoginPassword } from '../lib/password.js';
+import { hashPassword, verifyLoginPassword, verifyPassword } from '../lib/password.js';
 import { generateToken, hashToken } from '../lib/token.js';
-import { EMAIL_TAKEN_ERROR, type UserRepository } from '../repositories/userRepository.js';
+import type { PasswordResetTokenRepository } from '../repositories/passwordResetTokenRepository.js';
 import type { RefreshTokenRepository } from '../repositories/refreshTokenRepository.js';
+import { EMAIL_TAKEN_ERROR, type UserRepository } from '../repositories/userRepository.js';
 import { env } from '../config/env.js';
 
 export type PublicUser = {
@@ -44,7 +46,19 @@ export type RefreshResult =
   | { outcome: 'reject' }
   | { outcome: 'sign_failed' };
 
+export type ChangePasswordInput = {
+  userId: string;
+  currentPassword: string;
+  newPassword: string;
+  userAgent?: string;
+};
+
 const AUTH_UNAUTHORIZED_MESSAGE = 'Invalid email or password.';
+
+const SAME_PASSWORD_ERROR = {
+  message: 'Validation failed',
+  details: { newPassword: ['New password must be different from the current password'] },
+} as const;
 
 export function toPublicUser(user: User): PublicUser {
   return {
@@ -63,6 +77,10 @@ function unauthorized(): AppError {
   return new AppError('AUTH_UNAUTHORIZED', AUTH_UNAUTHORIZED_MESSAGE, 401);
 }
 
+function sessionUnauthorized(): AppError {
+  return new AppError('AUTH_UNAUTHORIZED', AUTH_SESSION_UNAUTHORIZED_MESSAGE, 401);
+}
+
 function isLive(row: RefreshToken, now = new Date()): boolean {
   return row.revokedAt === null && row.expiresAt > now;
 }
@@ -72,6 +90,7 @@ export class AuthService {
     private readonly userRepository: UserRepository,
     private readonly onUserRegistered: OnUserRegistered,
     private readonly refreshTokenRepository: RefreshTokenRepository,
+    private readonly passwordResetTokenRepository: PasswordResetTokenRepository,
     private readonly prisma: PrismaClient,
   ) {}
 
@@ -200,6 +219,65 @@ export class AuthService {
       };
     } catch {
       return { outcome: 'sign_failed' };
+    }
+  }
+
+  async changePassword(input: ChangePasswordInput): Promise<LoginResult> {
+    const pending = await this.prisma.$transaction(async (tx) => {
+      await this.passwordResetTokenRepository.lockForUser(input.userId, tx);
+
+      const user = await this.userRepository.findById(input.userId, tx);
+      if (!user || !user.isActive || !user.emailVerifiedAt) {
+        throw sessionUnauthorized();
+      }
+
+      const currentOk = await verifyPassword(input.currentPassword, user.passwordHash);
+      if (!currentOk) {
+        throw sessionUnauthorized();
+      }
+
+      if (input.newPassword === input.currentPassword) {
+        throw new AppError(
+          'VALIDATION_ERROR',
+          SAME_PASSWORD_ERROR.message,
+          400,
+          SAME_PASSWORD_ERROR.details,
+        );
+      }
+
+      const passwordHash = await hashPassword(input.newPassword);
+      const updated = await this.userRepository.updatePasswordAndBumpEpoch(user.id, passwordHash, tx);
+      await this.refreshTokenRepository.revokeAllLiveForUser(user.id, tx);
+      await this.passwordResetTokenRepository.invalidateUnusedForUser(user.id, tx);
+
+      // Create AFTER revokeAll so the reissued row is not revoked in the same operation.
+      const refreshToken = generateToken();
+      await this.refreshTokenRepository.create(
+        {
+          userId: user.id,
+          tokenHash: hashToken(refreshToken),
+          expiresAt: new Date(Date.now() + env.REFRESH_TOKEN_TTL_SECONDS * 1000),
+          userAgent: input.userAgent,
+        },
+        tx,
+      );
+
+      return { user: updated, refreshToken };
+    });
+
+    try {
+      const accessToken = await signAccessToken({
+        sub: pending.user.id,
+        email: pending.user.email,
+        systemRole: pending.user.systemRole,
+      });
+      return {
+        user: toPublicUser(pending.user),
+        accessToken,
+        refreshToken: pending.refreshToken,
+      };
+    } catch {
+      throw new AppError('INTERNAL_ERROR', 'An unexpected error occurred.', 500);
     }
   }
 

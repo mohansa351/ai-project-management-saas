@@ -70,6 +70,16 @@ function stubTokenRepo(): EmailVerificationTokenRepository {
   } as unknown as EmailVerificationTokenRepository;
 }
 
+function stubPasswordResetTokens() {
+  return {
+    create: jest.fn(),
+    findValidByHash: jest.fn(async () => null),
+    markUsedIfActive: jest.fn(async () => 0),
+    invalidateUnusedForUser: jest.fn(async () => undefined),
+    lockForUser: jest.fn(async () => undefined),
+  };
+}
+
 type RefreshMocks = {
   create: jest.Mock<RefreshTokenRepository['create']>;
   revokeByHash: jest.Mock<RefreshTokenRepository['revokeByHash']>;
@@ -91,7 +101,13 @@ function sessionApp(
     fakePrisma(),
   );
   const authController = new AuthController(
-    new AuthService(userRepository, async () => undefined, refreshTokenRepository, fakePrisma()),
+    new AuthService(
+      userRepository,
+      async () => undefined,
+      refreshTokenRepository,
+      stubPasswordResetTokens() as never,
+      fakePrisma(),
+    ),
     emailVerificationService,
     { forgot: async () => undefined, reset: async () => undefined } as unknown as PasswordResetService,
   );

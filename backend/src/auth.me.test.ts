@@ -41,6 +41,16 @@ function fakePrisma(): PrismaClient {
   } as unknown as PrismaClient;
 }
 
+function stubPasswordResetTokens() {
+  return {
+    create: jest.fn(),
+    findValidByHash: jest.fn(async () => null),
+    markUsedIfActive: jest.fn(async () => 0),
+    invalidateUnusedForUser: jest.fn(async () => undefined),
+    lockForUser: jest.fn(async () => undefined),
+  };
+}
+
 function meApp(user: User | null) {
   const userRepository = {
     findByEmail: jest.fn(),
@@ -51,7 +61,7 @@ function meApp(user: User | null) {
     revokeByHash: jest.fn(async () => 0),
   } as unknown as RefreshTokenRepository;
   const authController = new AuthController(
-    new AuthService(userRepository, async () => undefined, refreshTokenRepository, fakePrisma()),
+    new AuthService(userRepository, async () => undefined, refreshTokenRepository, stubPasswordResetTokens() as never, fakePrisma()),
     new EmailVerificationService(
       userRepository,
       {

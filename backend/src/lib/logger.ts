@@ -4,8 +4,12 @@ import { env } from '../config/env.js';
 export const LOGGER_REDACT_PATHS = [
   'password',
   'passwordHash',
+  'currentPassword',
+  'newPassword',
   '*.password',
   '*.passwordHash',
+  '*.currentPassword',
+  '*.newPassword',
   'accessToken',
   'refreshToken',
   'refresh_token',

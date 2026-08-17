@@ -51,6 +51,16 @@ function stubEmailTokens(): EmailVerificationTokenRepository {
   } as unknown as EmailVerificationTokenRepository;
 }
 
+function stubPasswordResetTokens() {
+  return {
+    create: jest.fn(),
+    findValidByHash: jest.fn(async () => null),
+    markUsedIfActive: jest.fn(async () => 0),
+    invalidateUnusedForUser: jest.fn(async () => undefined),
+    lockForUser: jest.fn(async () => undefined),
+  };
+}
+
 function cookieHeader(res: request.Response, name: string): string | undefined {
   const raw = res.headers['set-cookie'];
   const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
@@ -184,7 +194,7 @@ function refreshApp(user: User | null, store: Store, casCount = 1) {
     casSessionEpoch,
   } as unknown as UserRepository;
   const authController = new AuthController(
-    new AuthService(userRepository, async () => undefined, refreshTokenRepository, prisma),
+    new AuthService(userRepository, async () => undefined, refreshTokenRepository, stubPasswordResetTokens() as never, prisma),
     new EmailVerificationService(userRepository, stubEmailTokens(), { send: jest.fn(async () => undefined) }, prisma),
     { forgot: async () => undefined, reset: async () => undefined } as unknown as PasswordResetService,
   );

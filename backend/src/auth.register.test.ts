@@ -88,6 +88,16 @@ function stubTokenRepo(): EmailVerificationTokenRepository {
   } as unknown as EmailVerificationTokenRepository;
 }
 
+function stubPasswordResetTokens() {
+  return {
+    create: jest.fn(),
+    findValidByHash: jest.fn(async () => null),
+    markUsedIfActive: jest.fn(async () => 0),
+    invalidateUnusedForUser: jest.fn(async () => undefined),
+    lockForUser: jest.fn(async () => undefined),
+  };
+}
+
 /** Builds the app with the same wiring as server.ts: a real onUserRegistered hook that
  * calls issueAndSend and isolates provider failures, so a mocked EmailProvider.send can
  * be asserted directly. */
@@ -108,7 +118,13 @@ function registerApp(
       logger.warn({ err }, 'verification email failed');
     });
   const authController = new AuthController(
-    new AuthService(userRepository, onUserRegistered, stubRefreshRepo(), fakePrisma()),
+    new AuthService(
+      userRepository,
+      onUserRegistered,
+      stubRefreshRepo(),
+      stubPasswordResetTokens() as never,
+      fakePrisma(),
+    ),
     emailVerificationService,
     { forgot: async () => undefined, reset: async () => undefined } as unknown as PasswordResetService,
   );

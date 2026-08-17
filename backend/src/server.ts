@@ -24,6 +24,7 @@ const healthController = new HealthController(
 const userRepository = new UserRepository(prisma);
 const emailProvider = new ConsoleEmailProvider();
 const refreshTokenRepository = new RefreshTokenRepository(prisma);
+const passwordResetTokenRepository = new PasswordResetTokenRepository(prisma);
 const emailVerificationService = new EmailVerificationService(
   userRepository,
   new EmailVerificationTokenRepository(prisma),
@@ -32,7 +33,7 @@ const emailVerificationService = new EmailVerificationService(
 );
 const passwordResetService = new PasswordResetService(
   userRepository,
-  new PasswordResetTokenRepository(prisma),
+  passwordResetTokenRepository,
   refreshTokenRepository,
   emailProvider,
   prisma,
@@ -44,6 +45,7 @@ const authService = new AuthService(
       logger.warn({ err }, 'verification email failed');
     }),
   refreshTokenRepository,
+  passwordResetTokenRepository,
   prisma,
 );
 const authController = new AuthController(authService, emailVerificationService, passwordResetService);

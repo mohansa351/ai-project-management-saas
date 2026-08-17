@@ -14,6 +14,7 @@ export function createAuthRouter(
   router.post('/logout', authController.logout);
   router.post('/refresh', authController.refresh);
   router.get('/me', requireAuth, authController.me);
+  router.post('/change-password', limit, requireAuth, authController.changePassword);
   router.post('/verify-email', authController.verifyEmail);
   router.post('/resend-verification', authController.resendVerification);
   router.post('/forgot-password', limit, authController.forgotPassword);

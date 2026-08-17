@@ -248,7 +248,7 @@ async function buildHarness(
   } as unknown as UserRepository;
 
   const authController = new AuthController(
-    new AuthService(userRepository, async () => undefined, refreshRepo, prisma),
+    new AuthService(userRepository, async () => undefined, refreshRepo, resetRepo, prisma),
     new EmailVerificationService(userRepository, stubEmailTokens(), { send: jest.fn(async () => undefined) }, prisma),
     new PasswordResetService(userRepository, resetRepo, refreshRepo, { send }, prisma),
   );
@@ -511,7 +511,7 @@ describe('POST /api/v1/auth/reset-password', () => {
       }),
     } as unknown as UserRepository;
     const authController = new AuthController(
-      new AuthService(userRepository, async () => undefined, refreshRepo, prisma),
+      new AuthService(userRepository, async () => undefined, refreshRepo, resetRepo, prisma),
       new EmailVerificationService(userRepository, stubEmailTokens(), { send: jest.fn(async () => undefined) }, prisma),
       new PasswordResetService(userRepository, resetRepo, refreshRepo, { send: jest.fn(async () => undefined) }, prisma),
     );
@@ -587,7 +587,7 @@ describe('POST /api/v1/auth/reset-password', () => {
       }),
     } as unknown as UserRepository;
     const authController = new AuthController(
-      new AuthService(userRepository, async () => undefined, refreshRepo, prisma),
+      new AuthService(userRepository, async () => undefined, refreshRepo, resetRepo, prisma),
       new EmailVerificationService(userRepository, stubEmailTokens(), { send: jest.fn(async () => undefined) }, prisma),
       new PasswordResetService(userRepository, resetRepo, refreshRepo, { send: jest.fn(async () => undefined) }, prisma),
     );

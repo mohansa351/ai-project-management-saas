@@ -55,6 +55,11 @@ const resetPasswordBodySchema = z.object({
   password: passwordSchema,
 });
 
+const changePasswordBodySchema = z.object({
+  currentPassword: passwordSchema,
+  newPassword: passwordSchema,
+});
+
 function rawRefreshCookie(req: Request): string | undefined {
   const cookie = req.cookies?.[REFRESH_COOKIE_NAME];
   const raw = Array.isArray(cookie) ? cookie[0] : cookie;
@@ -132,6 +137,25 @@ export class AuthController {
       throw sessionUnauthorized();
     }
     res.status(200).json(success({ user: req.user }));
+  };
+
+  changePassword = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) {
+      throw sessionUnauthorized();
+    }
+    const parsed = changePasswordBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', 'Validation failed', 400, parsed.error.flatten().fieldErrors);
+    }
+    const userAgentHeader = req.get('user-agent');
+    const result = await this.authService.changePassword({
+      userId: req.user.id,
+      currentPassword: parsed.data.currentPassword,
+      newPassword: parsed.data.newPassword,
+      userAgent: userAgentHeader ? userAgentHeader.slice(0, 512) : undefined,
+    });
+    res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, refreshCookieOptions());
+    res.status(200).json(success({ accessToken: result.accessToken, user: result.user }));
   };
 
   verifyEmail = async (req: Request, res: Response): Promise<void> => {

@@ -26,6 +26,8 @@ describe('logger redaction', () => {
         refresh_token: 'cookie-refresh-should-not-leak',
         authorization: 'Bearer jwt-should-not-leak',
         JWT_ACCESS_SECRET: 'env-secret-should-not-leak',
+        currentPassword: 'current-password-should-not-leak',
+        newPassword: 'new-password-should-not-leak',
         cookie: 'refresh_token=cookie-refresh-should-not-leak',
         headers: { cookie: 'refresh_token=cookie-refresh-should-not-leak' },
         req: { headers: { cookie: 'refresh_token=cookie-refresh-should-not-leak' } },
@@ -39,6 +41,8 @@ describe('logger redaction', () => {
     expect(output).not.toContain('opaque-refresh-should-not-leak');
     expect(output).not.toContain('cookie-refresh-should-not-leak');
     expect(output).not.toContain('env-secret-should-not-leak');
+    expect(output).not.toContain('current-password-should-not-leak');
+    expect(output).not.toContain('new-password-should-not-leak');
     expect(output).toMatch(/\[Redacted\]/i);
   });
 });

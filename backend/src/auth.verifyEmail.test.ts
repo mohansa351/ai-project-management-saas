@@ -97,11 +97,19 @@ type MockTokenRepo = {
 };
 
 function buildApp(userRepo: MockUserRepo, tokenRepo: MockTokenRepo, emailProvider: EmailProvider) {
+  const stubPasswordResetTokens = {
+    create: jest.fn(),
+    findValidByHash: jest.fn(async () => null),
+    markUsedIfActive: jest.fn(async () => 0),
+    invalidateUnusedForUser: jest.fn(async () => undefined),
+    lockForUser: jest.fn(async () => undefined),
+  };
   const authController = new AuthController(
     new AuthService(
       userRepo as unknown as UserRepository,
       async () => undefined,
       stubRefreshRepo(),
+      stubPasswordResetTokens as never,
       fakePrisma(),
     ),
     new EmailVerificationService(
