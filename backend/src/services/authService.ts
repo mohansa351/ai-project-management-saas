@@ -1,7 +1,7 @@
 import type { User } from '@prisma/client';
 import { AppError } from '../lib/http/appError.js';
 import { signAccessToken } from '../lib/jwt.js';
-import { hashPassword, verifyPassword } from '../lib/password.js';
+import { hashPassword, verifyLoginPassword } from '../lib/password.js';
 import { generateToken, hashToken } from '../lib/token.js';
 import { EMAIL_TAKEN_ERROR, type UserRepository } from '../repositories/userRepository.js';
 import type { RefreshTokenRepository } from '../repositories/refreshTokenRepository.js';
@@ -91,17 +91,8 @@ export class AuthService {
   async login(input: LoginInput): Promise<LoginResult> {
     const email = input.email.toLowerCase();
     const user = await this.userRepository.findByEmail(email);
-    if (!user || !user.isActive) {
-      throw unauthorized();
-    }
-
-    let passwordOk = false;
-    try {
-      passwordOk = await verifyPassword(input.password, user.passwordHash);
-    } catch {
-      throw unauthorized();
-    }
-    if (!passwordOk) {
+    const passwordOk = await verifyLoginPassword(input.password, user);
+    if (!user || !user.isActive || !passwordOk) {
       throw unauthorized();
     }
 

@@ -78,4 +78,25 @@ describe('JWT and cookie session env', () => {
     const env = loadEnv({ ...requiredVars, JWT_REFRESH_SECRET: 'should-not-load' });
     expect(env).not.toHaveProperty('JWT_REFRESH_SECRET');
   });
+
+  it('rejects access TTL above 3600 seconds and refresh TTL that would overflow cookie Max-Age', () => {
+    expect(() => loadEnv({ ...requiredVars, ACCESS_TOKEN_TTL_SECONDS: '3601' })).toThrow(/Invalid environment/);
+    expect(() => loadEnv({ ...requiredVars, REFRESH_TOKEN_TTL_SECONDS: '2147484' })).toThrow(/Invalid environment/);
+  });
+
+  it('defaults COOKIE_SECURE true in production when unset and rejects weak production secrets', () => {
+    const productionSecret = 'a'.repeat(32);
+    const productionBase = {
+      ...requiredVars,
+      NODE_ENV: 'production',
+      JWT_ACCESS_SECRET: productionSecret,
+    };
+    expect(loadEnv(productionBase).COOKIE_SECURE).toBe(true);
+    expect(() => loadEnv({ ...productionBase, JWT_ACCESS_SECRET: 'change-me-access' })).toThrow(
+      /JWT_ACCESS_SECRET/,
+    );
+    expect(() => loadEnv({ ...productionBase, JWT_ACCESS_SECRET: 'short-secret' })).toThrow(/JWT_ACCESS_SECRET/);
+    expect(() => loadEnv({ ...productionBase, COOKIE_SECURE: 'false' })).toThrow(/COOKIE_SECURE/);
+    expect(loadEnv({ ...productionBase, COOKIE_SECURE: 'true' }).COOKIE_SECURE).toBe(true);
+  });
 });

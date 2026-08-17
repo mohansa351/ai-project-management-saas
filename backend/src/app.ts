@@ -18,6 +18,7 @@ export type AppControllers = {
 
 export function createApp({ healthController, authController, authRateLimit }: AppControllers): Express {
   const app = express();
+  app.set('trust proxy', 1);
 
   app.use(helmet());
   app.use(

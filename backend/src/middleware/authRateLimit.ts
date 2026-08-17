@@ -2,27 +2,42 @@ import type { NextFunction, Request, Response } from 'express';
 import { AppError } from '../lib/http/appError.js';
 import { logger } from '../lib/logger.js';
 
-const WINDOW_SECONDS = 60;
-const MAX_REQUESTS = 10;
+export const AUTH_RATE_LIMIT_WINDOW_SECONDS = 60;
+export const AUTH_RATE_LIMIT_MAX = 10;
+const CONNECT_TIMEOUT_MS = 500;
 
 export type RedisRateLimitClient = {
   isOpen: boolean;
   connect: () => Promise<unknown>;
   incr: (key: string) => Promise<number>;
+  ttl: (key: string) => Promise<number>;
   expire: (key: string, seconds: number) => Promise<unknown>;
 };
+
+async function ensureConnected(redis: RedisRateLimitClient): Promise<void> {
+  if (redis.isOpen) {
+    return;
+  }
+  await Promise.race([
+    redis.connect(),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('redis connect timeout')), CONNECT_TIMEOUT_MS);
+    }),
+  ]);
+}
 
 export function createAuthRateLimit(redis: RedisRateLimitClient) {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (!redis.isOpen) {
-        await redis.connect();
-      }
+      await ensureConnected(redis);
       const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
       const key = `rl:auth:${ip}`;
       const count = await redis.incr(key);
-      await redis.expire(key, WINDOW_SECONDS);
-      if (count > MAX_REQUESTS) {
+      const ttl = await redis.ttl(key);
+      if (ttl < 0) {
+        await redis.expire(key, AUTH_RATE_LIMIT_WINDOW_SECONDS);
+      }
+      if (count > AUTH_RATE_LIMIT_MAX) {
         next(new AppError('RATE_LIMITED', 'Too many requests. Try again later.', 429));
         return;
       }

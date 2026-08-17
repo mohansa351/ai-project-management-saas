@@ -1,19 +1,38 @@
-import pino from 'pino';
+import pino, { type DestinationStream, type Logger } from 'pino';
 import { env } from '../config/env.js';
 
-export const logger = pino({
-  level: env.NODE_ENV === 'test' ? 'silent' : 'info',
-  redact: [
-    'password',
-    'passwordHash',
-    '*.password',
-    '*.passwordHash',
-    'accessToken',
-    'refreshToken',
-    'refresh_token',
-    'authorization',
-    '*.accessToken',
-    '*.refreshToken',
-    '*.refresh_token',
-  ],
-});
+export const LOGGER_REDACT_PATHS = [
+  'password',
+  'passwordHash',
+  '*.password',
+  '*.passwordHash',
+  'accessToken',
+  'refreshToken',
+  'refresh_token',
+  'authorization',
+  'cookie',
+  'Cookie',
+  'set-cookie',
+  'JWT_ACCESS_SECRET',
+  '*.accessToken',
+  '*.refreshToken',
+  '*.refresh_token',
+  '*.authorization',
+  '*.cookie',
+  '*.JWT_ACCESS_SECRET',
+];
+
+export function createLogger(options?: {
+  level?: string;
+  destination?: DestinationStream;
+}): Logger {
+  return pino(
+    {
+      level: options?.level ?? (env.NODE_ENV === 'test' ? 'silent' : 'info'),
+      redact: LOGGER_REDACT_PATHS,
+    },
+    options?.destination,
+  );
+}
+
+export const logger = createLogger();

@@ -1,54 +1,76 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import type { NextFunction, Request, Response } from 'express';
 import { AppError } from '../lib/http/appError.js';
-import { createAuthRateLimit, type RedisRateLimitClient } from './authRateLimit.js';
+import {
+  AUTH_RATE_LIMIT_WINDOW_SECONDS,
+  createAuthRateLimit,
+  type RedisRateLimitClient,
+} from './authRateLimit.js';
 
-function run(redis: RedisRateLimitClient) {
+function run(redis: RedisRateLimitClient, ip = '203.0.113.10') {
   const mw = createAuthRateLimit(redis);
-  const req = { ip: '203.0.113.10', socket: { remoteAddress: '203.0.113.10' } } as unknown as Request;
+  const req = { ip, socket: { remoteAddress: ip } } as unknown as Request;
   const res = {} as Response;
   const next = jest.fn() as unknown as NextFunction;
   return { mw, req, res, next };
 }
 
+function redisStub(overrides: Partial<RedisRateLimitClient> = {}): RedisRateLimitClient {
+  return {
+    isOpen: true,
+    connect: jest.fn(async () => undefined),
+    incr: jest.fn(async () => 1),
+    ttl: jest.fn(async () => -1),
+    expire: jest.fn(async () => 1),
+    ...overrides,
+  };
+}
+
 describe('createAuthRateLimit', () => {
-  it('allows requests under the cap and sets expiry on first increment', async () => {
-    const incr = jest.fn<RedisRateLimitClient['incr']>(async () => 1);
+  it('allows requests under the cap and sets expiry when the key has no TTL', async () => {
     const expire = jest.fn<RedisRateLimitClient['expire']>(async () => 1);
-    const redis: RedisRateLimitClient = {
-      isOpen: true,
-      connect: jest.fn(async () => undefined),
-      incr,
+    const redis = redisStub({
+      incr: jest.fn(async () => 1),
+      ttl: jest.fn(async () => -1),
       expire,
-    };
+    });
     const { mw, req, res, next } = run(redis);
     await mw(req, res, next);
-    expect(incr).toHaveBeenCalledWith('rl:auth:203.0.113.10');
-    expect(expire).toHaveBeenCalledWith('rl:auth:203.0.113.10', 60);
+    expect(redis.incr).toHaveBeenCalledWith('rl:auth:203.0.113.10');
+    expect(expire).toHaveBeenCalledWith('rl:auth:203.0.113.10', AUTH_RATE_LIMIT_WINDOW_SECONDS);
     expect(next).toHaveBeenCalledWith();
   });
 
-  it('still sets the window TTL after the first increment', async () => {
+  it('does not reset a live window TTL on later increments', async () => {
     const expire = jest.fn<RedisRateLimitClient['expire']>(async () => 1);
-    const redis: RedisRateLimitClient = {
-      isOpen: true,
-      connect: jest.fn(async () => undefined),
+    const redis = redisStub({
       incr: jest.fn(async () => 2),
+      ttl: jest.fn(async () => 41),
       expire,
-    };
+    });
     const { mw, req, res, next } = run(redis);
     await mw(req, res, next);
-    expect(expire).toHaveBeenCalledWith('rl:auth:203.0.113.10', 60);
+    expect(expire).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledWith();
+  });
+
+  it('repairs a key that was incremented without a TTL', async () => {
+    const expire = jest.fn<RedisRateLimitClient['expire']>(async () => 1);
+    const redis = redisStub({
+      incr: jest.fn(async () => 3),
+      ttl: jest.fn(async () => -1),
+      expire,
+    });
+    const { mw, req, res, next } = run(redis);
+    await mw(req, res, next);
+    expect(expire).toHaveBeenCalledWith('rl:auth:203.0.113.10', AUTH_RATE_LIMIT_WINDOW_SECONDS);
   });
 
   it('returns RATE_LIMITED when the cap is exceeded', async () => {
-    const redis: RedisRateLimitClient = {
-      isOpen: true,
-      connect: jest.fn(async () => undefined),
+    const redis = redisStub({
       incr: jest.fn(async () => 11),
-      expire: jest.fn(async () => 1),
-    };
+      ttl: jest.fn(async () => 50),
+    });
     const { mw, req, res, next } = run(redis);
     await mw(req, res, next);
     const err = (next as unknown as jest.Mock).mock.calls[0]?.[0] as AppError;
@@ -57,17 +79,20 @@ describe('createAuthRateLimit', () => {
     expect(err.statusCode).toBe(429);
   });
 
-  it('fails open and warns when Redis throws', async () => {
-    const redis: RedisRateLimitClient = {
-      isOpen: true,
-      connect: jest.fn(async () => undefined),
+  it('fails open when Redis throws or connect times out', async () => {
+    const throwing = redisStub({
       incr: jest.fn(async () => {
         throw new Error('redis down');
       }),
-      expire: jest.fn(async () => 1),
-    };
-    const { mw, req, res, next } = run(redis);
-    await mw(req, res, next);
-    expect(next).toHaveBeenCalledWith();
+    });
+    const hung = redisStub({
+      isOpen: false,
+      connect: jest.fn(async () => new Promise(() => undefined)),
+    });
+    for (const redis of [throwing, hung]) {
+      const { mw, req, res, next } = run(redis);
+      await mw(req, res, next);
+      expect(next).toHaveBeenCalledWith();
+    }
   });
 });
