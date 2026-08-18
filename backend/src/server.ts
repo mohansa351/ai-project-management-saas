@@ -2,6 +2,7 @@ import { env } from './config/env.js';
 import { createApp } from './app.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
+import { OrganizationController } from './controllers/organizationController.js';
 import { createEmailProvider } from './lib/email/emailProvider.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
@@ -12,10 +13,13 @@ import { EmailVerificationTokenRepository } from './repositories/emailVerificati
 import { HealthRepository } from './repositories/healthRepository.js';
 import { PasswordResetTokenRepository } from './repositories/passwordResetTokenRepository.js';
 import { RefreshTokenRepository } from './repositories/refreshTokenRepository.js';
+import { OrganizationMemberRepository } from './repositories/organizationMemberRepository.js';
+import { OrganizationRepository } from './repositories/organizationRepository.js';
 import { UserRepository } from './repositories/userRepository.js';
 import { AuthService } from './services/authService.js';
 import { EmailVerificationService } from './services/emailVerificationService.js';
 import { HealthService } from './services/healthService.js';
+import { OrganizationService } from './services/organizationService.js';
 import { PasswordResetService } from './services/passwordResetService.js';
 
 const healthController = new HealthController(
@@ -60,9 +64,17 @@ const authService = new AuthService(
   prisma,
 );
 const authController = new AuthController(authService, emailVerificationService, passwordResetService);
+const organizationController = new OrganizationController(
+  new OrganizationService(
+    new OrganizationRepository(prisma),
+    new OrganizationMemberRepository(prisma),
+    prisma,
+  ),
+);
 const app = createApp({
   healthController,
   authController,
+  organizationController,
   authRateLimit: env.NODE_ENV === 'test' ? undefined : createAuthRateLimit(redis),
   requireAccessToken: createRequireAccessToken(userRepository),
 });

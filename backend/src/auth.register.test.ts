@@ -5,6 +5,7 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
+import { dummyOrganizationController } from './controllers/organizationController.js';
 import type { EmailProvider } from './lib/email/emailProvider.js';
 import { logger } from './lib/logger.js';
 import { verifyPassword } from './lib/password.js';
@@ -139,6 +140,7 @@ function registerApp(
   return createApp({
     healthController: mockHealth(),
     authController,
+    organizationController: dummyOrganizationController(),
   });
 }
 

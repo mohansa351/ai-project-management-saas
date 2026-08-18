@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { env } from './config/env.js';
 import type { AuthController } from './controllers/authController.js';
 import type { HealthController } from './controllers/healthController.js';
+import type { OrganizationController } from './controllers/organizationController.js';
 import { AppError } from './lib/http/appError.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestId.js';
@@ -13,6 +14,7 @@ import { createV1Router } from './routes/v1/index.js';
 export type AppControllers = {
   healthController: HealthController;
   authController: AuthController;
+  organizationController: OrganizationController;
   authRateLimit?: RequestHandler;
   requireAccessToken?: RequestHandler;
 };
@@ -20,6 +22,7 @@ export type AppControllers = {
 export function createApp({
   healthController,
   authController,
+  organizationController,
   authRateLimit,
   requireAccessToken,
 }: AppControllers): Express {
@@ -38,7 +41,10 @@ export function createApp({
   app.use(cookieParser());
 
   app.get('/health', healthController.getHealth);
-  app.use('/api/v1', createV1Router(healthController, authController, authRateLimit, requireAccessToken));
+  app.use(
+    '/api/v1',
+    createV1Router(healthController, authController, organizationController, authRateLimit, requireAccessToken),
+  );
 
   if (env.NODE_ENV === 'test') {
     app.get('/__test/error', () => {

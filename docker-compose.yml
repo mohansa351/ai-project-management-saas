@@ -41,6 +41,7 @@ services:
     ports:
       - '4000:4000'
     environment:
+      NODE_ENV: development
       PORT: '4000'
       DATABASE_URL: postgresql://apm:apm@postgres:5432/apm
       REDIS_URL: redis://redis:6379

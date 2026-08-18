@@ -26,8 +26,47 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
   refreshTokens           RefreshToken[]
+  organizationMembers     OrganizationMember[]
 
   @@index([email, isActive])
+}
+
+enum OrgRole {
+  ORG_ADMIN
+  PROJECT_MANAGER
+  TEAM_MEMBER
+}
+
+enum OrgMemberStatus {
+  ACTIVE
+  PENDING
+}
+
+model Organization {
+  id        String    @id @default(cuid())
+  name      String
+  /// Unique among live orgs when set: SQL index Organization_slug_live_key (deletedAt IS NULL).
+  slug      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  members OrganizationMember[]
+}
+
+model OrganizationMember {
+  id             String          @id @default(cuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           OrgRole
+  status         OrgMemberStatus
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([userId])
 }
 
 model EmailVerificationToken {

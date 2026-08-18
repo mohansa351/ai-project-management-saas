@@ -6,6 +6,7 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
+import { dummyOrganizationController } from './controllers/organizationController.js';
 import type { EmailProvider, EmailMessage } from './lib/email/emailProvider.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from './lib/http/authErrors.js';
 import { AppError } from './lib/http/appError.js';
@@ -254,7 +255,12 @@ async function buildHarness(
   );
 
   return {
-    app: createApp({ healthController: mockHealth(), authController, authRateLimit }),
+    app: createApp({
+      healthController: mockHealth(),
+      authController,
+      organizationController: dummyOrganizationController(),
+      authRateLimit,
+    }),
     user,
     resetStore,
     refreshStore,
@@ -515,7 +521,11 @@ describe('POST /api/v1/auth/reset-password', () => {
       new EmailVerificationService(userRepository, stubEmailTokens(), { send: jest.fn(async () => undefined) }, prisma),
       new PasswordResetService(userRepository, resetRepo, refreshRepo, { send: jest.fn(async () => undefined) }, prisma),
     );
-    const app = createApp({ healthController: mockHealth(), authController });
+    const app = createApp({
+      healthController: mockHealth(),
+      authController,
+      organizationController: dummyOrganizationController(),
+    });
 
     const first = await request(app)
       .post('/api/v1/auth/reset-password')
@@ -591,7 +601,11 @@ describe('POST /api/v1/auth/reset-password', () => {
       new EmailVerificationService(userRepository, stubEmailTokens(), { send: jest.fn(async () => undefined) }, prisma),
       new PasswordResetService(userRepository, resetRepo, refreshRepo, { send: jest.fn(async () => undefined) }, prisma),
     );
-    const app = createApp({ healthController: mockHealth(), authController });
+    const app = createApp({
+      healthController: mockHealth(),
+      authController,
+      organizationController: dummyOrganizationController(),
+    });
 
     const [first, second] = await Promise.all([
       request(app).post('/api/v1/auth/reset-password').send({ token: 'same-token', password: NEW_PASSWORD }),

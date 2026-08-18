@@ -6,6 +6,7 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
+import { dummyOrganizationController } from './controllers/organizationController.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from './lib/http/authErrors.js';
 import { signAccessToken } from './lib/jwt.js';
 import { createRequireAccessToken } from './middleware/requireAccessToken.js';
@@ -81,6 +82,7 @@ function meApp(user: User | null) {
       getReadiness: jest.fn(async () => ({ status: 'ok', postgres: 'up', redis: 'up', uptime: 1 })),
     } as unknown as HealthService),
     authController,
+    organizationController: dummyOrganizationController(),
     requireAccessToken: createRequireAccessToken(userRepository),
   });
 }

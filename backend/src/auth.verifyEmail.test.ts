@@ -5,6 +5,7 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
+import { dummyOrganizationController } from './controllers/organizationController.js';
 import type { EmailProvider } from './lib/email/emailProvider.js';
 import { hashToken } from './lib/token.js';
 import type { EmailVerificationTokenRepository } from './repositories/emailVerificationTokenRepository.js';
@@ -128,7 +129,11 @@ function buildApp(userRepo: MockUserRepo, tokenRepo: MockTokenRepo, emailProvide
     ),
     { forgot: async () => undefined, reset: async () => undefined } as unknown as PasswordResetService,
   );
-  return createApp({ healthController: mockHealth(), authController });
+  return createApp({
+    healthController: mockHealth(),
+    authController,
+    organizationController: dummyOrganizationController(),
+  });
 }
 
 describe('POST /api/v1/auth/verify-email', () => {

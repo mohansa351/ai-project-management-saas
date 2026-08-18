@@ -3,6 +3,7 @@ import request from 'supertest';
 import { createApp } from './app.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
+import { dummyOrganizationController } from './controllers/organizationController.js';
 import { AppError } from './lib/http/appError.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestId.js';
@@ -35,6 +36,7 @@ function healthApp(readiness: Readiness = okReadiness) {
   return createApp({
     healthController: new HealthController(mockService(readiness)),
     authController: stubAuthController(),
+    organizationController: dummyOrganizationController(),
   });
 }
 
