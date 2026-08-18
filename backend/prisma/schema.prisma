@@ -52,6 +52,7 @@ model Organization {
   deletedAt DateTime?
 
   members OrganizationMember[]
+  invites OrganizationInvite[]
 }
 
 model OrganizationMember {
@@ -67,6 +68,20 @@ model OrganizationMember {
 
   @@unique([organizationId, userId])
   @@index([userId])
+}
+
+model OrganizationInvite {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           OrgRole
+  tokenHash      String       @unique
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, email])
 }
 
 model EmailVerificationToken {

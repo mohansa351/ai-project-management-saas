@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { AppError } from '../lib/http/appError.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from '../lib/http/authErrors.js';
 import { success } from '../lib/http/envelope.js';
+import type { OrganizationInviteService } from '../services/organizationInviteService.js';
 import type { OrganizationService } from '../services/organizationService.js';
+import type { PublicUser } from '../services/authService.js';
 
 const slugSchema = z
   .string()
@@ -43,15 +45,28 @@ const listQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+const inviteBodySchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  role: z.enum(['ORG_ADMIN', 'PROJECT_MANAGER', 'TEAM_MEMBER']),
+});
+
+const acceptBodySchema = z.object({
+  token: z.string().trim().min(1),
+});
+
 function sessionUnauthorized(): AppError {
   return new AppError('AUTH_UNAUTHORIZED', AUTH_SESSION_UNAUTHORIZED_MESSAGE, 401);
 }
 
-function requireUserId(req: Request): string {
+function requireUser(req: Request): PublicUser {
   if (!req.user) {
     throw sessionUnauthorized();
   }
-  return req.user.id;
+  return req.user;
+}
+
+function requireUserId(req: Request): string {
+  return requireUser(req).id;
 }
 
 function routeId(req: Request): string {
@@ -60,7 +75,10 @@ function routeId(req: Request): string {
 }
 
 export class OrganizationController {
-  constructor(private readonly organizationService: OrganizationService) {}
+  constructor(
+    private readonly organizationService: OrganizationService,
+    private readonly organizationInviteService: OrganizationInviteService,
+  ) {}
 
   create = async (req: Request, res: Response): Promise<void> => {
     const userId = requireUserId(req);
@@ -103,6 +121,26 @@ export class OrganizationController {
     const organization = await this.organizationService.softDelete(userId, routeId(req));
     res.status(200).json(success({ organization }));
   };
+
+  invite = async (req: Request, res: Response): Promise<void> => {
+    const userId = requireUserId(req);
+    const parsed = inviteBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', 'Validation failed', 400, parsed.error.flatten().fieldErrors);
+    }
+    const invite = await this.organizationInviteService.invite(userId, routeId(req), parsed.data);
+    res.status(201).json(success({ invite }));
+  };
+
+  accept = async (req: Request, res: Response): Promise<void> => {
+    const user = requireUser(req);
+    const parsed = acceptBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', 'Validation failed', 400, parsed.error.flatten().fieldErrors);
+    }
+    const membership = await this.organizationInviteService.accept(user, routeId(req), parsed.data.token);
+    res.status(200).json(success({ membership }));
+  };
 }
 
 export function dummyOrganizationController(): OrganizationController {
@@ -112,6 +150,8 @@ export function dummyOrganizationController(): OrganizationController {
     getById: unusedOrgHandler,
     patch: unusedOrgHandler,
     remove: unusedOrgHandler,
+    invite: unusedOrgHandler,
+    accept: unusedOrgHandler,
   } as unknown as OrganizationController;
 }
 

@@ -48,6 +48,25 @@ describe('EMAIL_VERIFICATION_TOKEN_TTL_MINUTES bounds', () => {
   });
 });
 
+describe('ORG_INVITE_TOKEN_TTL_MINUTES bounds', () => {
+  it('defaults to 10080 when unset', () => {
+    expect(loadEnv({ ...requiredVars }).ORG_INVITE_TOKEN_TTL_MINUTES).toBe(10080);
+  });
+
+  it('accepts the upper bound (129600 minutes / ~90 days)', () => {
+    expect(loadEnv({ ...requiredVars, ORG_INVITE_TOKEN_TTL_MINUTES: '129600' }).ORG_INVITE_TOKEN_TTL_MINUTES).toBe(
+      129600,
+    );
+  });
+
+  it('rejects a value above the upper bound, zero, negative, and non-integer', () => {
+    expect(() => loadEnv({ ...requiredVars, ORG_INVITE_TOKEN_TTL_MINUTES: '129601' })).toThrow(/Invalid environment/);
+    expect(() => loadEnv({ ...requiredVars, ORG_INVITE_TOKEN_TTL_MINUTES: '0' })).toThrow(/Invalid environment/);
+    expect(() => loadEnv({ ...requiredVars, ORG_INVITE_TOKEN_TTL_MINUTES: '-1' })).toThrow(/Invalid environment/);
+    expect(() => loadEnv({ ...requiredVars, ORG_INVITE_TOKEN_TTL_MINUTES: '10.5' })).toThrow(/Invalid environment/);
+  });
+});
+
 describe('PASSWORD_RESET_TOKEN_TTL_MINUTES bounds', () => {
   it('defaults to 60 when unset', () => {
     expect(loadEnv({ ...requiredVars }).PASSWORD_RESET_TOKEN_TTL_MINUTES).toBe(60);

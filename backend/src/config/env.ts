@@ -32,6 +32,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().trim().min(1),
   EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(129600).default(1440),
   PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(1440).default(60),
+  ORG_INVITE_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(129600).default(10080),
   SMTP_HOST: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.string().trim().min(1).optional(),

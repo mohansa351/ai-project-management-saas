@@ -9,10 +9,13 @@ import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from './lib/http/authErrors.js';
 import { AUTHZ_FORBIDDEN_MESSAGE, ORGANIZATION_NOT_FOUND_MESSAGE } from './lib/http/orgErrors.js';
 import { signAccessToken } from './lib/jwt.js';
 import { createRequireAccessToken } from './middleware/requireAccessToken.js';
+import type { EmailProvider } from './lib/email/emailProvider.js';
+import { OrganizationInviteRepository } from './repositories/organizationInviteRepository.js';
 import { OrganizationMemberRepository } from './repositories/organizationMemberRepository.js';
 import { OrganizationRepository } from './repositories/organizationRepository.js';
 import type { UserRepository } from './repositories/userRepository.js';
 import type { HealthService } from './services/healthService.js';
+import { OrganizationInviteService } from './services/organizationInviteService.js';
 import { OrganizationService } from './services/organizationService.js';
 
 const now = new Date('2026-08-18T00:00:00.000Z');
@@ -184,6 +187,7 @@ function createFakePrisma(store: OrgStore): PrismaClient {
         async ({
           where,
           create,
+          update,
         }: {
           where: { organizationId_userId: { organizationId: string; userId: string } };
           create: {
@@ -200,8 +204,8 @@ function createFakePrisma(store: OrgStore): PrismaClient {
               member.userId === where.organizationId_userId.userId,
           );
           if (existing) {
-            existing.role = create.role;
-            existing.status = create.status;
+            existing.role = update.role;
+            existing.status = update.status;
             existing.updatedAt = now;
             return { ...existing };
           }
@@ -222,13 +226,13 @@ function createFakePrisma(store: OrgStore): PrismaClient {
         async ({
           where,
         }: {
-          where: { organizationId: string; userId: string; status: 'ACTIVE' };
+          where: { organizationId: string; userId: string; status?: 'ACTIVE' | 'PENDING' };
         }) => {
           const found = store.members.find(
             (member) =>
               member.organizationId === where.organizationId &&
               member.userId === where.userId &&
-              member.status === where.status,
+              (where.status === undefined || member.status === where.status),
           );
           return found ? { ...found } : null;
         },
@@ -295,6 +299,14 @@ function orgApp(user: User | null, store: OrgStore) {
         new OrganizationService(
           new OrganizationRepository(prisma),
           new OrganizationMemberRepository(prisma),
+          prisma,
+        ),
+        new OrganizationInviteService(
+          new OrganizationRepository(prisma),
+          new OrganizationMemberRepository(prisma),
+          new OrganizationInviteRepository(prisma),
+          { findByEmail: jest.fn(async () => null) } as unknown as UserRepository,
+          { send: jest.fn(async () => undefined) } as EmailProvider,
           prisma,
         ),
       ),

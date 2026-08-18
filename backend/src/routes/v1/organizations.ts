@@ -12,5 +12,7 @@ export function createOrganizationsRouter(
   router.get('/:id', requireAuth, organizationController.getById);
   router.patch('/:id', requireAuth, organizationController.patch);
   router.delete('/:id', requireAuth, organizationController.remove);
+  router.post('/:id/members/invite', requireAuth, organizationController.invite);
+  router.post('/:id/members/accept', requireAuth, organizationController.accept);
   return router;
 }

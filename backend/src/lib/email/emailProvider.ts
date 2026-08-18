@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import { logger } from '../logger.js';
 
-export type EmailMessageType = 'verification' | 'password-reset';
+export type EmailMessageType = 'verification' | 'password-reset' | 'organization_invite';
 
 export type EmailMessage = {
   to: string;

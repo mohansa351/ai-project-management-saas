@@ -13,12 +13,14 @@ import { EmailVerificationTokenRepository } from './repositories/emailVerificati
 import { HealthRepository } from './repositories/healthRepository.js';
 import { PasswordResetTokenRepository } from './repositories/passwordResetTokenRepository.js';
 import { RefreshTokenRepository } from './repositories/refreshTokenRepository.js';
+import { OrganizationInviteRepository } from './repositories/organizationInviteRepository.js';
 import { OrganizationMemberRepository } from './repositories/organizationMemberRepository.js';
 import { OrganizationRepository } from './repositories/organizationRepository.js';
 import { UserRepository } from './repositories/userRepository.js';
 import { AuthService } from './services/authService.js';
 import { EmailVerificationService } from './services/emailVerificationService.js';
 import { HealthService } from './services/healthService.js';
+import { OrganizationInviteService } from './services/organizationInviteService.js';
 import { OrganizationService } from './services/organizationService.js';
 import { PasswordResetService } from './services/passwordResetService.js';
 
@@ -64,10 +66,16 @@ const authService = new AuthService(
   prisma,
 );
 const authController = new AuthController(authService, emailVerificationService, passwordResetService);
+const organizationMemberRepository = new OrganizationMemberRepository(prisma);
+const organizationRepository = new OrganizationRepository(prisma);
 const organizationController = new OrganizationController(
-  new OrganizationService(
-    new OrganizationRepository(prisma),
-    new OrganizationMemberRepository(prisma),
+  new OrganizationService(organizationRepository, organizationMemberRepository, prisma),
+  new OrganizationInviteService(
+    organizationRepository,
+    organizationMemberRepository,
+    new OrganizationInviteRepository(prisma),
+    userRepository,
+    emailProvider,
     prisma,
   ),
 );
