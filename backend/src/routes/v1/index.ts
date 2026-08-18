@@ -11,10 +11,14 @@ export function createV1Router(
   organizationController: OrganizationController,
   authRateLimit?: RequestHandler,
   requireAccessToken?: RequestHandler,
+  requireOrganizationContext?: RequestHandler,
 ): Router {
   const router = Router();
   router.get('/health', healthController.getHealth);
   router.use('/auth', createAuthRouter(authController, authRateLimit, requireAccessToken));
-  router.use('/organizations', createOrganizationsRouter(organizationController, requireAccessToken));
+  router.use(
+    '/organizations',
+    createOrganizationsRouter(organizationController, requireAccessToken, requireOrganizationContext),
+  );
   return router;
 }

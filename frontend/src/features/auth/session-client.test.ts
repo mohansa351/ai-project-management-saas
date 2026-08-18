@@ -309,6 +309,38 @@ describe('session client', () => {
     ]);
   });
 
+  it('sends X-Organization-Id from the session store on Bearer fetches', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation(async () => jsonResponse(200, { success: true, data: {} }));
+    useSessionStore.setState({
+      accessToken: 'tok',
+      status: 'authenticated',
+      user: sessionUser,
+      currentOrganizationId: 'org_a',
+    });
+
+    await apiFetch('/organizations/org_a/members');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get('Authorization')).toBe('Bearer tok');
+    expect(headers.get('X-Organization-Id')).toBe('org_a');
+  });
+
+  it('keeps currentOrganizationId across same-user applySession and clears it for a different user', async () => {
+    useSessionStore.setState({
+      accessToken: 'tok',
+      status: 'authenticated',
+      user: sessionUser,
+      currentOrganizationId: 'org_a',
+    });
+    useSessionStore.getState().applySession('tok-2', sessionUser);
+    expect(useSessionStore.getState().currentOrganizationId).toBe('org_a');
+
+    useSessionStore.getState().applySession('tok-3', { ...sessionUser, id: 'user_2' });
+    expect(useSessionStore.getState().currentOrganizationId).toBeNull();
+  });
+
   it('does not persist the access token or mention document.cookie / persist middleware', () => {
     const storeSrc = readFileSync(path.join(here, 'session-store.ts'), 'utf8');
     const clientSrc = readFileSync(path.join(here, 'session-client.ts'), 'utf8');

@@ -9,6 +9,7 @@ import { prisma } from './lib/prisma.js';
 import { redis } from './lib/redis.js';
 import { createAuthRateLimit } from './middleware/authRateLimit.js';
 import { createRequireAccessToken } from './middleware/requireAccessToken.js';
+import { createRequireOrganizationContext } from './middleware/requireOrganizationContext.js';
 import { EmailVerificationTokenRepository } from './repositories/emailVerificationTokenRepository.js';
 import { HealthRepository } from './repositories/healthRepository.js';
 import { PasswordResetTokenRepository } from './repositories/passwordResetTokenRepository.js';
@@ -93,6 +94,10 @@ const app = createApp({
   organizationController,
   authRateLimit: env.NODE_ENV === 'test' ? undefined : createAuthRateLimit(redis),
   requireAccessToken: createRequireAccessToken(userRepository),
+  requireOrganizationContext: createRequireOrganizationContext({
+    organizationRepository,
+    organizationMemberRepository,
+  }),
 });
 
 const server = app.listen(env.PORT, '0.0.0.0', () => {

@@ -187,6 +187,7 @@ export function resetAuthRuntimeForTests(): void {
 
 configureApiFetchAuth({
   getAccessToken: () => useSessionStore.getState().accessToken,
+  getOrganizationId: () => useSessionStore.getState().currentOrganizationId,
   shouldAttachBearer: (resolvedPath) => !isCookieOnlyOrPublicAuthPath(resolvedPath),
   recoverUnauthorized,
 });

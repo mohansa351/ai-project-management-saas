@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { AppError } from '../lib/http/appError.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from '../lib/http/authErrors.js';
+import { ORG_CONTEXT_MISMATCH_MESSAGE, ORG_CONTEXT_REQUIRED_MESSAGE } from '../lib/http/orgErrors.js';
 import { success } from '../lib/http/envelope.js';
 import type { OrganizationInviteService } from '../services/organizationInviteService.js';
 import type { OrganizationMemberService } from '../services/organizationMemberService.js';
@@ -80,6 +81,19 @@ function routeMemberId(req: Request): string {
   return typeof id === 'string' ? id : '';
 }
 
+function requireMatchingOrgContext(req: Request, organizationId: string): void {
+  if (!req.organizationId) {
+    throw new AppError('VALIDATION_ERROR', ORG_CONTEXT_REQUIRED_MESSAGE, 400, {
+      'x-organization-id': [ORG_CONTEXT_REQUIRED_MESSAGE],
+    });
+  }
+  if (req.organizationId !== organizationId) {
+    throw new AppError('VALIDATION_ERROR', ORG_CONTEXT_MISMATCH_MESSAGE, 400, {
+      'x-organization-id': [ORG_CONTEXT_MISMATCH_MESSAGE],
+    });
+  }
+}
+
 const patchMemberBodySchema = z.object({
   role: z.enum(['ORG_ADMIN', 'PROJECT_MANAGER', 'TEAM_MEMBER']),
 });
@@ -155,11 +169,13 @@ export class OrganizationController {
 
   listMembers = async (req: Request, res: Response): Promise<void> => {
     const userId = requireUserId(req);
+    const organizationId = routeId(req);
+    requireMatchingOrgContext(req, organizationId);
     const parsed = listQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       throw new AppError('VALIDATION_ERROR', 'Validation failed', 400, parsed.error.flatten().fieldErrors);
     }
-    const result = await this.organizationMemberService.list(userId, routeId(req), parsed.data);
+    const result = await this.organizationMemberService.list(userId, organizationId, parsed.data);
     res.status(200).json(success({ members: result.members }, result.meta));
   };
 

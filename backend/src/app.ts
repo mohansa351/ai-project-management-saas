@@ -17,6 +17,7 @@ export type AppControllers = {
   organizationController: OrganizationController;
   authRateLimit?: RequestHandler;
   requireAccessToken?: RequestHandler;
+  requireOrganizationContext?: RequestHandler;
 };
 
 export function createApp({
@@ -25,6 +26,7 @@ export function createApp({
   organizationController,
   authRateLimit,
   requireAccessToken,
+  requireOrganizationContext,
 }: AppControllers): Express {
   const app = express();
   app.set('trust proxy', 1);
@@ -43,7 +45,14 @@ export function createApp({
   app.get('/health', healthController.getHealth);
   app.use(
     '/api/v1',
-    createV1Router(healthController, authController, organizationController, authRateLimit, requireAccessToken),
+    createV1Router(
+      healthController,
+      authController,
+      organizationController,
+      authRateLimit,
+      requireAccessToken,
+      requireOrganizationContext,
+    ),
   );
 
   if (env.NODE_ENV === 'test') {

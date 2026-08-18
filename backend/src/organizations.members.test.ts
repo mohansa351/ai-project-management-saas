@@ -17,11 +17,14 @@ import {
   AUTHZ_FORBIDDEN_MESSAGE,
   LAST_ACTIVE_ORG_ADMIN_ERROR,
   ORGANIZATION_NOT_FOUND_MESSAGE,
+  ORG_CONTEXT_MISMATCH_MESSAGE,
+  ORG_CONTEXT_REQUIRED_MESSAGE,
   ORG_INVITE_TOKEN_INVALID_MESSAGE,
 } from './lib/http/orgErrors.js';
 import { signAccessToken } from './lib/jwt.js';
 import { hashToken } from './lib/token.js';
 import { createRequireAccessToken } from './middleware/requireAccessToken.js';
+import { createRequireOrganizationContext } from './middleware/requireOrganizationContext.js';
 import { OrganizationInviteRepository } from './repositories/organizationInviteRepository.js';
 import { OrganizationMemberRepository } from './repositories/organizationMemberRepository.js';
 import { OrganizationRepository } from './repositories/organizationRepository.js';
@@ -374,6 +377,10 @@ function memberApp(store: MemberStore) {
         ),
       ),
       requireAccessToken: createRequireAccessToken(userRepository),
+      requireOrganizationContext: createRequireOrganizationContext({
+        organizationRepository: new OrganizationRepository(prisma),
+        organizationMemberRepository: new OrganizationMemberRepository(prisma),
+      }),
     }),
   };
 }
@@ -430,6 +437,7 @@ describe('organization members', () => {
     const res = await request(app)
       .get('/api/v1/organizations/org_a/members')
       .set('Authorization', `Bearer ${token}`)
+      .set('X-Organization-Id', 'org_a')
       .expect(200);
 
     expect(res.body).toEqual({
@@ -446,6 +454,7 @@ describe('organization members', () => {
     const paged = await request(app)
       .get('/api/v1/organizations/org_a/members?page=2&pageSize=1')
       .set('Authorization', `Bearer ${token}`)
+      .set('X-Organization-Id', 'org_a')
       .expect(200);
     expect(paged.body.data.members).toEqual([publicMember(older, pending)]);
     expect(paged.body.meta).toEqual({ page: 2, pageSize: 1, total: 2, totalPages: 2 });
@@ -478,6 +487,7 @@ describe('organization members', () => {
       const res = await request(app)
         .get('/api/v1/organizations/org_a/members')
         .set('Authorization', `Bearer ${await bearer(user)}`)
+        .set('X-Organization-Id', 'org_a')
         .expect(403);
       expect(res.body.error.code).toBe('AUTHZ_FORBIDDEN');
       expect(res.body.error.message).toBe(AUTHZ_FORBIDDEN_MESSAGE);
@@ -486,6 +496,7 @@ describe('organization members', () => {
     const gone = await request(app)
       .get('/api/v1/organizations/org_dead/members')
       .set('Authorization', `Bearer ${await bearer(adminA)}`)
+      .set('X-Organization-Id', 'org_dead')
       .expect(404);
     expect(gone.body.error.code).toBe('NOT_FOUND');
     expect(gone.body.error.message).toBe(ORGANIZATION_NOT_FOUND_MESSAGE);
@@ -518,6 +529,7 @@ describe('organization members', () => {
     const forbidden = await request(app)
       .get('/api/v1/organizations/org_a/members')
       .set('Authorization', `Bearer ${await bearer(second)}`)
+      .set('X-Organization-Id', 'org_a')
       .expect(403);
     expect(forbidden.body.error.code).toBe('AUTHZ_FORBIDDEN');
   });
@@ -870,6 +882,41 @@ describe('organization members', () => {
     expect(accept.body.error.code).toBe('AUTH_TOKEN_INVALID');
     expect(accept.body.error.message).toBe(ORG_INVITE_TOKEN_INVALID_MESSAGE);
     expect(store.members.find((member) => member.userId === invitee.id)).toBeUndefined();
+  });
+
+  it('rejects GET members without X-Organization-Id', async () => {
+    const store: MemberStore = { orgs: [], members: [], invites: [], users: [], ids: 0 };
+    seedOrg(store, { id: 'org_a', name: 'Acme' });
+    const admin = seedUser(store);
+    seedMember(store, { organizationId: 'org_a', userId: admin.id, role: 'ORG_ADMIN', status: 'ACTIVE' });
+    const { app } = memberApp(store);
+
+    const res = await request(app)
+      .get('/api/v1/organizations/org_a/members')
+      .set('Authorization', `Bearer ${await bearer(admin)}`)
+      .expect(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toBe(ORG_CONTEXT_REQUIRED_MESSAGE);
+    expect(res.body.data).toBeUndefined();
+  });
+
+  it('rejects GET members when X-Organization-Id does not match the path org', async () => {
+    const store: MemberStore = { orgs: [], members: [], invites: [], users: [], ids: 0 };
+    seedOrg(store, { id: 'org_a', name: 'Acme' });
+    seedOrg(store, { id: 'org_b', name: 'Beta' });
+    const admin = seedUser(store);
+    seedMember(store, { organizationId: 'org_a', userId: admin.id, role: 'ORG_ADMIN', status: 'ACTIVE' });
+    seedMember(store, { organizationId: 'org_b', userId: admin.id, role: 'ORG_ADMIN', status: 'ACTIVE' });
+    const { app } = memberApp(store);
+
+    const res = await request(app)
+      .get('/api/v1/organizations/org_b/members')
+      .set('Authorization', `Bearer ${await bearer(admin)}`)
+      .set('X-Organization-Id', 'org_a')
+      .expect(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toBe(ORG_CONTEXT_MISMATCH_MESSAGE);
+    expect(res.body.data).toBeUndefined();
   });
 });
 

@@ -27,6 +27,7 @@ export type ApiFetchOptions = {
 
 export type ApiFetchAuthHooks = {
   getAccessToken: () => string | null;
+  getOrganizationId?: () => string | null;
   shouldAttachBearer: (resolvedPath: string) => boolean;
   recoverUnauthorized: (args: {
     path: string;
@@ -91,6 +92,7 @@ function attachAuthorization(
   options: ApiFetchOptions | undefined,
 ): void {
   headers.delete('Authorization');
+  headers.delete('X-Organization-Id');
   if (options?.skipAuth || !authHooks) {
     return;
   }
@@ -102,6 +104,10 @@ function attachAuthorization(
     return;
   }
   headers.set('Authorization', `Bearer ${token}`);
+  const organizationId = authHooks.getOrganizationId?.()?.trim();
+  if (organizationId) {
+    headers.set('X-Organization-Id', organizationId);
+  }
 }
 
 /**

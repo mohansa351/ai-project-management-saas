@@ -9,6 +9,7 @@ import { PHASE_PRODUCTION_BUILD, PHASE_PRODUCTION_SERVER } from 'next/constants'
 import {
   apiFetch,
   apiJson,
+  configureApiFetchAuth,
   getApiBasePath,
   resolveApiPath,
 } from '@/lib/api/client';
@@ -28,6 +29,7 @@ function loadConfig(mod: { default: unknown }, phase?: string): NextConfig {
 
 describe('API rewrite matrix', () => {
   afterEach(() => {
+    configureApiFetchAuth(null);
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
@@ -69,6 +71,60 @@ describe('API rewrite matrix', () => {
 
     const [url] = fetchMock.mock.calls[0] as [string, RequestInit?];
     expect(url).toBe('/api/v1/health');
+  });
+
+  it('attaches X-Organization-Id with Bearer when an organization id is set', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    configureApiFetchAuth({
+      getAccessToken: () => 'access-token',
+      getOrganizationId: () => 'org_a',
+      shouldAttachBearer: () => true,
+      recoverUnauthorized: async () => null,
+    });
+
+    await apiFetch('/organizations/org_a/members');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get('Authorization')).toBe('Bearer access-token');
+    expect(headers.get('X-Organization-Id')).toBe('org_a');
+  });
+
+  it('does not send X-Organization-Id on skipAuth fetches', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    configureApiFetchAuth({
+      getAccessToken: () => 'access-token',
+      getOrganizationId: () => 'org_a',
+      shouldAttachBearer: () => true,
+      recoverUnauthorized: async () => null,
+    });
+
+    await apiFetch('/auth/login', { method: 'POST' }, { skipAuth: true });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get('Authorization')).toBeNull();
+    expect(headers.get('X-Organization-Id')).toBeNull();
+  });
+
+  it('drops a caller-supplied X-Organization-Id when the store has no org id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    configureApiFetchAuth({
+      getAccessToken: () => 'access-token',
+      getOrganizationId: () => null,
+      shouldAttachBearer: () => true,
+      recoverUnauthorized: async () => null,
+    });
+
+    await apiFetch('/organizations/org_a', {
+      headers: { 'X-Organization-Id': 'org_spoof' },
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(new Headers(init.headers).get('X-Organization-Id')).toBeNull();
   });
 
   it('rejects path traversal that would escape /api/v1', () => {

@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type ReactNode } from 'react';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,6 +18,13 @@ import { mockPathname, mockRedirect } from '@/test/navigation-mock';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const shellSrcDir = here;
 const globalsCssPath = path.resolve(here, '../../app/globals.css');
+
+function withProviders(children: ReactNode) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
 
 function readShellSources(): string {
   const files = [
@@ -43,14 +52,17 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 describe('shell breakpoints matrix', () => {
   it('desktop ≥lg: expanded 240px sidebar + 56px topbar + APM + nav/org stubs', () => {
     render(
-      <AppShell>
-        <p>content</p>
-      </AppShell>,
+      withProviders(
+        <AppShell>
+          <p>content</p>
+        </AppShell>,
+      ),
     );
 
     const sidebar = screen.getByTestId('sidebar');
@@ -92,9 +104,11 @@ describe('shell breakpoints matrix', () => {
 
   it('tablet md–<lg: 64px collapsed sidebar', () => {
     render(
-      <AppShell>
-        <p>content</p>
-      </AppShell>,
+      withProviders(
+        <AppShell>
+          <p>content</p>
+        </AppShell>,
+      ),
     );
 
     const rail = screen.getByTestId('sidebar-rail');
@@ -117,9 +131,11 @@ describe('shell breakpoints matrix', () => {
   it('mobile <md: hamburger opens Sheet navigation without overlapping close', async () => {
     const user = userEvent.setup();
     render(
-      <AppShell>
-        <p>content</p>
-      </AppShell>,
+      withProviders(
+        <AppShell>
+          <p>content</p>
+        </AppShell>,
+      ),
     );
 
     const rail = screen.getByTestId('sidebar-rail');
@@ -147,9 +163,11 @@ describe('shell breakpoints matrix', () => {
   it('mobile sheet closes on pathname change and on current-route click', async () => {
     const user = userEvent.setup();
     const view = render(
-      <AppShell>
-        <p>content</p>
-      </AppShell>,
+      withProviders(
+        <AppShell>
+          <p>content</p>
+        </AppShell>,
+      ),
     );
 
     await user.click(screen.getByTestId('mobile-nav-trigger'));
@@ -157,17 +175,21 @@ describe('shell breakpoints matrix', () => {
 
     mockPathname.mockReturnValue('/projects');
     view.rerender(
-      <AppShell>
-        <p>content</p>
-      </AppShell>,
+      withProviders(
+        <AppShell>
+          <p>content</p>
+        </AppShell>,
+      ),
     );
     expect(screen.queryByTestId('mobile-nav-sheet')).not.toBeInTheDocument();
 
     mockPathname.mockReturnValue('/dashboard');
     view.rerender(
-      <AppShell>
-        <p>content</p>
-      </AppShell>,
+      withProviders(
+        <AppShell>
+          <p>content</p>
+        </AppShell>,
+      ),
     );
     await user.click(screen.getByTestId('mobile-nav-trigger'));
     const sheet = await screen.findByTestId('mobile-nav-sheet');
@@ -202,9 +224,11 @@ describe('shell breakpoints matrix', () => {
 
     try {
       render(
-        <AppShell>
-          <p>content</p>
-        </AppShell>,
+        withProviders(
+          <AppShell>
+            <p>content</p>
+          </AppShell>,
+        ),
       );
       expect(listeners.size).toBeGreaterThan(0);
 
@@ -224,9 +248,11 @@ describe('shell breakpoints matrix', () => {
   it('topbar heading reflects mocked pathname', () => {
     mockPathname.mockReturnValue('/projects');
     render(
-      <AppShell>
-        <p>content</p>
-      </AppShell>,
+      withProviders(
+        <AppShell>
+          <p>content</p>
+        </AppShell>,
+      ),
     );
 
     expect(screen.getByTestId('topbar-title')).toHaveTextContent('Projects');
@@ -247,10 +273,25 @@ describe('shell breakpoints matrix', () => {
         updatedAt: 't',
       },
     });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: { organizations: [] },
+            meta: { page: 1, pageSize: 100, total: 0, totalPages: 0 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
     render(
-      <AppShellLayout>
-        <p data-testid="child">inside</p>
-      </AppShellLayout>,
+      withProviders(
+        <AppShellLayout>
+          <p data-testid="child">inside</p>
+        </AppShellLayout>,
+      ),
     );
 
     expect(screen.getByTestId('app-shell')).toBeInTheDocument();
@@ -281,9 +322,11 @@ describe('design tokens matrix', () => {
     expect(shellSource).not.toMatch(/variant=["']ai["']/);
 
     const { container } = render(
-      <AppShell>
-        <p>content</p>
-      </AppShell>,
+      withProviders(
+        <AppShell>
+          <p>content</p>
+        </AppShell>,
+      ),
     );
     const classes = collectClassNames(container as HTMLElement);
     expect(classes).not.toMatch(/\bbg-accent\b/);

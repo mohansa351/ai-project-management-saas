@@ -142,6 +142,7 @@ describe('login silent refresh and logout', () => {
       status: 'authenticated',
       accessToken: 'tok',
       user: sessionUser,
+      currentOrganizationId: 'org_a',
     });
 
     render(<Topbar />);
@@ -160,5 +161,6 @@ describe('login silent refresh and logout', () => {
     expect(mockReplace).toHaveBeenCalledWith('/login');
     expect(useSessionStore.getState().status).toBe('unauthenticated');
     expect(useSessionStore.getState().accessToken).toBeNull();
+    expect(useSessionStore.getState().currentOrganizationId).toBeNull();
   });
 });

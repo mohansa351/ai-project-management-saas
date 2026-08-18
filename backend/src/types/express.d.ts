@@ -7,6 +7,7 @@ declare global {
       requestId: string;
       log: Logger;
       user?: PublicUser;
+      organizationId?: string;
     }
   }
 }
