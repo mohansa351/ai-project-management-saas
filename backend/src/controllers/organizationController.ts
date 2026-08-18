@@ -4,6 +4,7 @@ import { AppError } from '../lib/http/appError.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from '../lib/http/authErrors.js';
 import { success } from '../lib/http/envelope.js';
 import type { OrganizationInviteService } from '../services/organizationInviteService.js';
+import type { OrganizationMemberService } from '../services/organizationMemberService.js';
 import type { OrganizationService } from '../services/organizationService.js';
 import type { PublicUser } from '../services/authService.js';
 
@@ -74,10 +75,20 @@ function routeId(req: Request): string {
   return typeof id === 'string' ? id : '';
 }
 
+function routeMemberId(req: Request): string {
+  const id = req.params.memberId;
+  return typeof id === 'string' ? id : '';
+}
+
+const patchMemberBodySchema = z.object({
+  role: z.enum(['ORG_ADMIN', 'PROJECT_MANAGER', 'TEAM_MEMBER']),
+});
+
 export class OrganizationController {
   constructor(
     private readonly organizationService: OrganizationService,
     private readonly organizationInviteService: OrganizationInviteService,
+    private readonly organizationMemberService: OrganizationMemberService,
   ) {}
 
   create = async (req: Request, res: Response): Promise<void> => {
@@ -141,6 +152,37 @@ export class OrganizationController {
     const membership = await this.organizationInviteService.accept(user, routeId(req), parsed.data.token);
     res.status(200).json(success({ membership }));
   };
+
+  listMembers = async (req: Request, res: Response): Promise<void> => {
+    const userId = requireUserId(req);
+    const parsed = listQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', 'Validation failed', 400, parsed.error.flatten().fieldErrors);
+    }
+    const result = await this.organizationMemberService.list(userId, routeId(req), parsed.data);
+    res.status(200).json(success({ members: result.members }, result.meta));
+  };
+
+  patchMember = async (req: Request, res: Response): Promise<void> => {
+    const userId = requireUserId(req);
+    const parsed = patchMemberBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', 'Validation failed', 400, parsed.error.flatten().fieldErrors);
+    }
+    const membership = await this.organizationMemberService.patchRole(
+      userId,
+      routeId(req),
+      routeMemberId(req),
+      parsed.data.role,
+    );
+    res.status(200).json(success({ membership }));
+  };
+
+  removeMember = async (req: Request, res: Response): Promise<void> => {
+    const userId = requireUserId(req);
+    const membership = await this.organizationMemberService.remove(userId, routeId(req), routeMemberId(req));
+    res.status(200).json(success({ membership }));
+  };
 }
 
 export function dummyOrganizationController(): OrganizationController {
@@ -152,6 +194,9 @@ export function dummyOrganizationController(): OrganizationController {
     remove: unusedOrgHandler,
     invite: unusedOrgHandler,
     accept: unusedOrgHandler,
+    listMembers: unusedOrgHandler,
+    patchMember: unusedOrgHandler,
+    removeMember: unusedOrgHandler,
   } as unknown as OrganizationController;
 }
 

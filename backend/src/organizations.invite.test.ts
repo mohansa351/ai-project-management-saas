@@ -29,6 +29,7 @@ import { OrganizationRepository } from './repositories/organizationRepository.js
 import { UserRepository } from './repositories/userRepository.js';
 import type { HealthService } from './services/healthService.js';
 import { OrganizationInviteService } from './services/organizationInviteService.js';
+import { OrganizationMemberService } from './services/organizationMemberService.js';
 import { OrganizationService } from './services/organizationService.js';
 
 const now = new Date('2026-08-18T00:00:00.000Z');
@@ -370,6 +371,12 @@ function inviteApp(store: InviteStore, send: EmailProvider['send'] = jest.fn(asy
           new OrganizationInviteRepository(prisma),
           userRepository,
           { send },
+          prisma,
+        ),
+        new OrganizationMemberService(
+          new OrganizationRepository(prisma),
+          new OrganizationMemberRepository(prisma),
+          new OrganizationInviteRepository(prisma),
           prisma,
         ),
       ),

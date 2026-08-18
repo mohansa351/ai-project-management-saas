@@ -21,6 +21,7 @@ import { AuthService } from './services/authService.js';
 import { EmailVerificationService } from './services/emailVerificationService.js';
 import { HealthService } from './services/healthService.js';
 import { OrganizationInviteService } from './services/organizationInviteService.js';
+import { OrganizationMemberService } from './services/organizationMemberService.js';
 import { OrganizationService } from './services/organizationService.js';
 import { PasswordResetService } from './services/passwordResetService.js';
 
@@ -68,14 +69,21 @@ const authService = new AuthService(
 const authController = new AuthController(authService, emailVerificationService, passwordResetService);
 const organizationMemberRepository = new OrganizationMemberRepository(prisma);
 const organizationRepository = new OrganizationRepository(prisma);
+const organizationInviteRepository = new OrganizationInviteRepository(prisma);
 const organizationController = new OrganizationController(
   new OrganizationService(organizationRepository, organizationMemberRepository, prisma),
   new OrganizationInviteService(
     organizationRepository,
     organizationMemberRepository,
-    new OrganizationInviteRepository(prisma),
+    organizationInviteRepository,
     userRepository,
     emailProvider,
+    prisma,
+  ),
+  new OrganizationMemberService(
+    organizationRepository,
+    organizationMemberRepository,
+    organizationInviteRepository,
     prisma,
   ),
 );

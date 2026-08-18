@@ -1,8 +1,25 @@
-import type { OrganizationMember, Prisma, PrismaClient } from '@prisma/client';
+import type { OrganizationMember, OrgRole, Prisma, PrismaClient } from '@prisma/client';
 import { AppError } from '../lib/http/appError.js';
 import { ALREADY_ACTIVE_MEMBER_ERROR } from '../lib/http/orgErrors.js';
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient;
+
+const memberUserSelect = { id: true, email: true, name: true } as const;
+
+export type OrganizationMemberWithUser = OrganizationMember & {
+  user: { id: string; email: string; name: string };
+};
+
+export type ListByOrgQuery = {
+  organizationId: string;
+  page: number;
+  pageSize: number;
+};
+
+export type ListByOrgResult = {
+  members: OrganizationMemberWithUser[];
+  total: number;
+};
 
 function isUniqueConstraint(err: unknown): boolean {
   return (
@@ -133,5 +150,69 @@ export class OrganizationMemberRepository {
         status: 'ACTIVE',
       },
     });
+  }
+
+  /**
+   * Serializes last-admin counts with the following write so concurrent demote/remove
+   * cannot both observe more than one ACTIVE ORG_ADMIN under READ COMMITTED.
+   */
+  async lockForMemberWrite(organizationId: string, client: PrismaClientOrTx = this.prisma): Promise<void> {
+    const key = `org-members:${organizationId}`;
+    await client.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+  }
+
+  async findById(
+    id: string,
+    client: PrismaClientOrTx = this.prisma,
+  ): Promise<OrganizationMemberWithUser | null> {
+    return client.organizationMember.findUnique({
+      where: { id },
+      include: { user: { select: memberUserSelect } },
+    });
+  }
+
+  async listByOrg(query: ListByOrgQuery, client: PrismaClientOrTx = this.prisma): Promise<ListByOrgResult> {
+    const where: Prisma.OrganizationMemberWhereInput = { organizationId: query.organizationId };
+    const skip = (query.page - 1) * query.pageSize;
+    const [members, total] = await Promise.all([
+      client.organizationMember.findMany({
+        where,
+        include: { user: { select: memberUserSelect } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take: query.pageSize,
+      }),
+      client.organizationMember.count({ where }),
+    ]);
+    return { members, total };
+  }
+
+  async countActiveOrgAdmins(
+    organizationId: string,
+    client: PrismaClientOrTx = this.prisma,
+  ): Promise<number> {
+    return client.organizationMember.count({
+      where: {
+        organizationId,
+        role: 'ORG_ADMIN',
+        status: 'ACTIVE',
+      },
+    });
+  }
+
+  async updateRole(
+    id: string,
+    role: OrgRole,
+    client: PrismaClientOrTx = this.prisma,
+  ): Promise<OrganizationMemberWithUser> {
+    return client.organizationMember.update({
+      where: { id },
+      data: { role },
+      include: { user: { select: memberUserSelect } },
+    });
+  }
+
+  async deleteById(id: string, client: PrismaClientOrTx = this.prisma): Promise<void> {
+    await client.organizationMember.delete({ where: { id } });
   }
 }

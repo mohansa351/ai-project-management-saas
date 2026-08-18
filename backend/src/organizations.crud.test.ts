@@ -16,6 +16,7 @@ import { OrganizationRepository } from './repositories/organizationRepository.js
 import type { UserRepository } from './repositories/userRepository.js';
 import type { HealthService } from './services/healthService.js';
 import { OrganizationInviteService } from './services/organizationInviteService.js';
+import { OrganizationMemberService } from './services/organizationMemberService.js';
 import { OrganizationService } from './services/organizationService.js';
 
 const now = new Date('2026-08-18T00:00:00.000Z');
@@ -307,6 +308,12 @@ function orgApp(user: User | null, store: OrgStore) {
           new OrganizationInviteRepository(prisma),
           { findByEmail: jest.fn(async () => null) } as unknown as UserRepository,
           { send: jest.fn(async () => undefined) } as EmailProvider,
+          prisma,
+        ),
+        new OrganizationMemberService(
+          new OrganizationRepository(prisma),
+          new OrganizationMemberRepository(prisma),
+          new OrganizationInviteRepository(prisma),
           prisma,
         ),
       ),
