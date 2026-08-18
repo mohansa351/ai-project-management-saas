@@ -55,6 +55,9 @@ export function OrgSwitcher({
       return;
     }
     const ids = new Set(organizations.map((org) => org.id));
+    if (query.isFetching) {
+      return;
+    }
     if (currentOrganizationId && ids.has(currentOrganizationId)) {
       return;
     }
@@ -63,7 +66,7 @@ export function OrgSwitcher({
     if (currentOrganizationId && currentOrganizationId !== nextId) {
       void queryClient.invalidateQueries({ queryKey: ['org'] });
     }
-  }, [organizations, currentOrganizationId, setCurrentOrganizationId, queryClient]);
+  }, [organizations, currentOrganizationId, setCurrentOrganizationId, queryClient, query.isFetching]);
 
   const selectedId = currentOrganizationId ?? '';
   const name = currentName(organizations, currentOrganizationId);

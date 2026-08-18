@@ -102,6 +102,7 @@ function createFakePrisma(store: OrgStore): PrismaClient {
           orderBy,
           skip,
           take,
+          include,
         }: {
           where: {
             deletedAt: null;
@@ -110,6 +111,9 @@ function createFakePrisma(store: OrgStore): PrismaClient {
           orderBy: Array<{ createdAt?: 'desc'; id?: 'desc' }>;
           skip: number;
           take: number;
+          include?: {
+            members?: { where: { userId: string; status: 'ACTIVE' }; take?: number };
+          };
         }) => {
           const matched = store.orgs
             .filter((org) => org.deletedAt === where.deletedAt)
@@ -132,7 +136,22 @@ function createFakePrisma(store: OrgStore): PrismaClient {
               }
               return 0;
             });
-          return matched.slice(skip, skip + take).map((org) => ({ ...org }));
+          return matched.slice(skip, skip + take).map((org) => {
+            const copy: StoredOrg & { members?: StoredMember[] } = { ...org };
+            if (include?.members) {
+              let members = store.members.filter(
+                (member) =>
+                  member.organizationId === org.id &&
+                  member.userId === include.members?.where.userId &&
+                  member.status === include.members.where.status,
+              );
+              if (include.members.take !== undefined) {
+                members = members.slice(0, include.members.take);
+              }
+              copy.members = members.map((member) => ({ ...member }));
+            }
+            return copy;
+          });
         },
       ),
       count: jest.fn(
@@ -348,6 +367,7 @@ describe('organization CRUD', () => {
           createdAt: now.toISOString(),
           updatedAt: now.toISOString(),
           deletedAt: null,
+          membership: { role: 'ORG_ADMIN', status: 'ACTIVE' },
         },
       },
     });
@@ -403,6 +423,16 @@ describe('organization CRUD', () => {
       .expect(200);
 
     expect(res.body.data.organizations.map((org: { id: string }) => org.id)).toEqual(['org_a', 'org_b']);
+    expect(res.body.data.organizations).toEqual([
+      expect.objectContaining({
+        id: 'org_a',
+        membership: { role: 'ORG_ADMIN', status: 'ACTIVE' },
+      }),
+      expect.objectContaining({
+        id: 'org_b',
+        membership: { role: 'TEAM_MEMBER', status: 'ACTIVE' },
+      }),
+    ]);
     expect(res.body.meta).toEqual({ page: 1, pageSize: 20, total: 2, totalPages: 1 });
 
     const page = await request(app)
@@ -427,6 +457,7 @@ describe('organization CRUD', () => {
       .expect(200);
     expect(res.body.data.organization.id).toBe('org_a');
     expect(res.body.data.organization.name).toBe('A');
+    expect(res.body.data.organization.membership).toEqual({ role: 'TEAM_MEMBER', status: 'ACTIVE' });
   });
 
   it('lets an ACTIVE PROJECT_MANAGER GET a live org they belong to', async () => {
@@ -441,6 +472,10 @@ describe('organization CRUD', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     expect(res.body.data.organization.id).toBe('org_a');
+    expect(res.body.data.organization.membership).toEqual({
+      role: 'PROJECT_MANAGER',
+      status: 'ACTIVE',
+    });
   });
 
   it('returns 403 when an ACTIVE member of one org requests another org by id', async () => {

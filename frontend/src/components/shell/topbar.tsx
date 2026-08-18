@@ -17,6 +17,9 @@ import {
 import { primaryNavItems } from '@/components/shell/nav-items';
 import { Sidebar } from '@/components/shell/sidebar';
 import { logoutSession } from '@/features/auth/session-client';
+import { isCurrentOrgAdmin } from '@/features/organizations/org-api';
+import { useOrganizationsQuery } from '@/features/organizations/use-organizations-query';
+import { useSessionStore } from '@/features/auth/session-store';
 import { cn } from '@/lib/utils';
 
 type TopbarProps = {
@@ -39,6 +42,9 @@ export function Topbar({ title, className }: TopbarProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const currentOrganizationId = useSessionStore((s) => s.currentOrganizationId);
+  const organizationsQuery = useOrganizationsQuery();
+  const showMembersLink = isCurrentOrgAdmin(organizationsQuery.data, currentOrganizationId);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -146,6 +152,17 @@ export function Topbar({ title, className }: TopbarProps) {
               >
                 Security
               </Link>
+              {showMembersLink ? (
+                <Link
+                  href="/settings/members"
+                  role="menuitem"
+                  data-testid="user-menu-members"
+                  className="block px-3 py-2 text-sm text-foreground hover:bg-muted"
+                  onClick={() => setUserMenuOpen(false)}
+                >
+                  Members
+                </Link>
+              ) : null}
               <button
                 type="button"
                 role="menuitem"

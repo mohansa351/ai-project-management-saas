@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -131,12 +132,23 @@ describe('login silent refresh and logout', () => {
   it('logout posts to the logout endpoint and sends the user to /login', async () => {
     const user = userEvent.setup();
     mockReplace.mockClear();
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ success: true, data: { message: 'Logged out.' } }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+    const fetchMock = vi.fn(async (input: RequestInfo) => {
+      const url = String(input);
+      if (url.includes('/auth/logout')) {
+        return new Response(JSON.stringify({ success: true, data: { message: 'Logged out.' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: { organizations: [] },
+          meta: { page: 1, pageSize: 100, total: 0, totalPages: 0 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    });
     vi.stubGlobal('fetch', fetchMock);
     useSessionStore.setState({
       status: 'authenticated',
@@ -145,17 +157,21 @@ describe('login silent refresh and logout', () => {
       currentOrganizationId: 'org_a',
     });
 
-    render(<Topbar />);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <Topbar />
+      </QueryClientProvider>,
+    );
     await user.click(screen.getByTestId('user-menu'));
     await user.click(screen.getByTestId('logout-button'));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalled();
+      expect(fetchMock.mock.calls.some(([url]) => String(url) === '/api/v1/auth/logout')).toBe(true);
     });
-    const firstCall = fetchMock.mock.calls[0];
-    expect(firstCall).toBeDefined();
-    const [url, init] = firstCall as unknown as [string, RequestInit];
-    expect(url).toBe('/api/v1/auth/logout');
+    const logoutCall = fetchMock.mock.calls.find(([url]) => String(url) === '/api/v1/auth/logout');
+    expect(logoutCall).toBeDefined();
+    const [, init] = logoutCall as unknown as [string, RequestInit];
     expect(init.credentials).toBe('include');
     expect(new Headers(init.headers).get('Authorization')).toBeNull();
     expect(mockReplace).toHaveBeenCalledWith('/login');

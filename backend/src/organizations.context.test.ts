@@ -81,10 +81,14 @@ function createFakePrisma(store: Store): PrismaClient {
           where,
           skip,
           take,
+          include,
         }: {
           where: { deletedAt: null; members: { some: { userId: string; status: 'ACTIVE' } } };
           skip: number;
           take: number;
+          include?: {
+            members?: { where: { userId: string; status: 'ACTIVE' }; take?: number };
+          };
         }) => {
           const userId = where.members.some.userId;
           return store.orgs
@@ -99,7 +103,22 @@ function createFakePrisma(store: Store): PrismaClient {
                 ),
             )
             .slice(skip, skip + take)
-            .map((org) => ({ ...org }));
+            .map((org) => {
+              const copy: (typeof org) & { members?: OrganizationMember[] } = { ...org };
+              if (include?.members) {
+                let members = store.members.filter(
+                  (member) =>
+                    member.organizationId === org.id &&
+                    member.userId === include.members?.where.userId &&
+                    member.status === include.members.where.status,
+                );
+                if (include.members.take !== undefined) {
+                  members = members.slice(0, include.members.take);
+                }
+                copy.members = members.map((member) => ({ ...member }));
+              }
+              return copy;
+            });
         },
       ),
       count: jest.fn(

@@ -1,4 +1,4 @@
-import type { Organization, Prisma, PrismaClient } from '@prisma/client';
+import type { Organization, OrganizationMember, Prisma, PrismaClient } from '@prisma/client';
 import { AppError } from '../lib/http/appError.js';
 import { SLUG_TAKEN_ERROR } from '../lib/http/orgErrors.js';
 
@@ -18,8 +18,12 @@ export type ListLiveForUserQuery = {
   pageSize: number;
 };
 
+export type OrganizationWithCallerMember = Organization & {
+  members: OrganizationMember[];
+};
+
 export type ListLiveForUserResult = {
-  organizations: Organization[];
+  organizations: OrganizationWithCallerMember[];
   total: number;
 };
 
@@ -83,6 +87,15 @@ export class OrganizationRepository {
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip,
         take: query.pageSize,
+        include: {
+          members: {
+            where: {
+              userId: query.userId,
+              status: 'ACTIVE',
+            },
+            take: 1,
+          },
+        },
       }),
       client.organization.count({ where }),
     ]);

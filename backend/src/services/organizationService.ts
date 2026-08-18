@@ -1,9 +1,14 @@
-import type { Organization, PrismaClient } from '@prisma/client';
+import type { Organization, OrganizationMember, PrismaClient } from '@prisma/client';
 import { AppError } from '../lib/http/appError.js';
 import { ORGANIZATION_NOT_FOUND_MESSAGE } from '../lib/http/orgErrors.js';
 import type { OrganizationMemberRepository } from '../repositories/organizationMemberRepository.js';
 import type { OrganizationRepository } from '../repositories/organizationRepository.js';
 import { assertOrgMember, assertPermission } from './authz/assert.js';
+
+export type CallerOrganizationMembership = {
+  role: OrganizationMember['role'];
+  status: OrganizationMember['status'];
+};
 
 export type PublicOrganization = {
   id: string;
@@ -12,6 +17,7 @@ export type PublicOrganization = {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
+  membership: CallerOrganizationMembership;
 };
 
 export type CreateOrganizationInput = {
@@ -43,7 +49,10 @@ function notFound(): AppError {
   return new AppError('NOT_FOUND', ORGANIZATION_NOT_FOUND_MESSAGE, 404);
 }
 
-export function toPublicOrganization(organization: Organization): PublicOrganization {
+export function toPublicOrganization(
+  organization: Organization,
+  membership: Pick<OrganizationMember, 'role' | 'status'>,
+): PublicOrganization {
   return {
     id: organization.id,
     name: organization.name,
@@ -51,7 +60,21 @@ export function toPublicOrganization(organization: Organization): PublicOrganiza
     createdAt: organization.createdAt,
     updatedAt: organization.updatedAt,
     deletedAt: organization.deletedAt,
+    membership: {
+      role: membership.role,
+      status: membership.status,
+    },
   };
+}
+
+function requireListedMembership(
+  members: Array<Pick<OrganizationMember, 'role' | 'status'>>,
+): Pick<OrganizationMember, 'role' | 'status'> {
+  const membership = members[0];
+  if (!membership) {
+    throw new Error('listed organization is missing the caller ACTIVE membership');
+  }
+  return membership;
 }
 
 export class OrganizationService {
@@ -70,7 +93,7 @@ export class OrganizationService {
       await this.organizationMemberRepository.upsertOrgAdmin(created.id, userId, tx);
       return created;
     });
-    return toPublicOrganization(organization);
+    return toPublicOrganization(organization, { role: 'ORG_ADMIN', status: 'ACTIVE' });
   }
 
   async list(userId: string, input: ListOrganizationsInput): Promise<ListOrganizationsResult> {
@@ -80,7 +103,9 @@ export class OrganizationService {
       pageSize: input.pageSize,
     });
     return {
-      organizations: organizations.map(toPublicOrganization),
+      organizations: organizations.map((organization) =>
+        toPublicOrganization(organization, requireListedMembership(organization.members)),
+      ),
       meta: {
         page: input.page,
         pageSize: input.pageSize,
@@ -91,8 +116,8 @@ export class OrganizationService {
   }
 
   async getById(userId: string, organizationId: string): Promise<PublicOrganization> {
-    const { organization } = await this.orgMember(userId, organizationId);
-    return toPublicOrganization(organization);
+    const { organization, member } = await this.orgMember(userId, organizationId);
+    return toPublicOrganization(organization, member);
   }
 
   async patch(
@@ -100,21 +125,21 @@ export class OrganizationService {
     organizationId: string,
     input: PatchOrganizationInput,
   ): Promise<PublicOrganization> {
-    await this.requireOrgManage(userId, organizationId);
+    const member = await this.requireOrgManage(userId, organizationId);
     const updated = await this.organizationRepository.updateLive(organizationId, input);
     if (!updated) {
       throw notFound();
     }
-    return toPublicOrganization(updated);
+    return toPublicOrganization(updated, member);
   }
 
   async softDelete(userId: string, organizationId: string): Promise<PublicOrganization> {
-    await this.requireOrgManage(userId, organizationId);
+    const member = await this.requireOrgManage(userId, organizationId);
     const deleted = await this.organizationRepository.softDelete(organizationId);
     if (!deleted) {
       throw notFound();
     }
-    return toPublicOrganization(deleted);
+    return toPublicOrganization(deleted, member);
   }
 
   private orgMember(userId: string, organizationId: string) {
@@ -128,8 +153,9 @@ export class OrganizationService {
     );
   }
 
-  private async requireOrgManage(userId: string, organizationId: string): Promise<void> {
+  private async requireOrgManage(userId: string, organizationId: string): Promise<OrganizationMember> {
     const { member } = await this.orgMember(userId, organizationId);
     assertPermission(member.role, 'org.manage');
+    return member;
   }
 }
