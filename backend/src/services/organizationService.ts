@@ -1,8 +1,9 @@
-import type { Organization, OrganizationMember, PrismaClient } from '@prisma/client';
+import type { Organization, PrismaClient } from '@prisma/client';
 import { AppError } from '../lib/http/appError.js';
-import { AUTHZ_FORBIDDEN_MESSAGE, ORGANIZATION_NOT_FOUND_MESSAGE } from '../lib/http/orgErrors.js';
+import { ORGANIZATION_NOT_FOUND_MESSAGE } from '../lib/http/orgErrors.js';
 import type { OrganizationMemberRepository } from '../repositories/organizationMemberRepository.js';
 import type { OrganizationRepository } from '../repositories/organizationRepository.js';
+import { assertOrgMember, assertPermission } from './authz/assert.js';
 
 export type PublicOrganization = {
   id: string;
@@ -37,10 +38,6 @@ export type ListOrganizationsResult = {
     totalPages: number;
   };
 };
-
-function forbidden(): AppError {
-  return new AppError('AUTHZ_FORBIDDEN', AUTHZ_FORBIDDEN_MESSAGE, 403);
-}
 
 function notFound(): AppError {
   return new AppError('NOT_FOUND', ORGANIZATION_NOT_FOUND_MESSAGE, 404);
@@ -94,7 +91,7 @@ export class OrganizationService {
   }
 
   async getById(userId: string, organizationId: string): Promise<PublicOrganization> {
-    const { organization } = await this.requireActiveMember(userId, organizationId);
+    const { organization } = await this.orgMember(userId, organizationId);
     return toPublicOrganization(organization);
   }
 
@@ -103,7 +100,7 @@ export class OrganizationService {
     organizationId: string,
     input: PatchOrganizationInput,
   ): Promise<PublicOrganization> {
-    await this.requireOrgAdmin(userId, organizationId);
+    await this.requireOrgManage(userId, organizationId);
     const updated = await this.organizationRepository.updateLive(organizationId, input);
     if (!updated) {
       throw notFound();
@@ -112,7 +109,7 @@ export class OrganizationService {
   }
 
   async softDelete(userId: string, organizationId: string): Promise<PublicOrganization> {
-    await this.requireOrgAdmin(userId, organizationId);
+    await this.requireOrgManage(userId, organizationId);
     const deleted = await this.organizationRepository.softDelete(organizationId);
     if (!deleted) {
       throw notFound();
@@ -120,26 +117,19 @@ export class OrganizationService {
     return toPublicOrganization(deleted);
   }
 
-  private async requireActiveMember(
-    userId: string,
-    organizationId: string,
-  ): Promise<{ organization: Organization; member: OrganizationMember }> {
-    const organization = await this.organizationRepository.findLiveById(organizationId);
-    if (!organization) {
-      throw notFound();
-    }
-    const member = await this.organizationMemberRepository.findActiveByOrgAndUser(organizationId, userId);
-    if (!member) {
-      throw forbidden();
-    }
-    return { organization, member };
+  private orgMember(userId: string, organizationId: string) {
+    return assertOrgMember(
+      {
+        organizationRepository: this.organizationRepository,
+        organizationMemberRepository: this.organizationMemberRepository,
+      },
+      userId,
+      organizationId,
+    );
   }
 
-  private async requireOrgAdmin(userId: string, organizationId: string): Promise<Organization> {
-    const { organization, member } = await this.requireActiveMember(userId, organizationId);
-    if (member.role !== 'ORG_ADMIN') {
-      throw forbidden();
-    }
-    return organization;
+  private async requireOrgManage(userId: string, organizationId: string): Promise<void> {
+    const { member } = await this.orgMember(userId, organizationId);
+    assertPermission(member.role, 'org.manage');
   }
 }

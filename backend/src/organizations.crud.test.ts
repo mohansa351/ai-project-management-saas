@@ -410,6 +410,36 @@ describe('organization CRUD', () => {
     expect(res.body.data.organization.name).toBe('A');
   });
 
+  it('lets an ACTIVE PROJECT_MANAGER GET a live org they belong to', async () => {
+    const store: OrgStore = { orgs: [], members: [], ids: 0 };
+    seedOrg(store, { id: 'org_a', name: 'A', slug: 'a' });
+    seedMember(store, { organizationId: 'org_a', userId: 'user_pm', role: 'PROJECT_MANAGER', status: 'ACTIVE' });
+    const { app } = orgApp(storedUser({ id: 'user_pm', email: 'pm@example.com' }), store);
+    const token = await bearer('user_pm', 'pm@example.com');
+
+    const res = await request(app)
+      .get('/api/v1/organizations/org_a')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(res.body.data.organization.id).toBe('org_a');
+  });
+
+  it('returns 403 when an ACTIVE member of one org requests another org by id', async () => {
+    const store: OrgStore = { orgs: [], members: [], ids: 0 };
+    seedOrg(store, { id: 'org_a', name: 'A' });
+    seedOrg(store, { id: 'org_b', name: 'B' });
+    seedMember(store, { organizationId: 'org_a', userId: 'user_1', role: 'ORG_ADMIN', status: 'ACTIVE' });
+    const { app } = orgApp(storedUser(), store);
+    const token = await bearer('user_1');
+
+    const res = await request(app)
+      .get('/api/v1/organizations/org_b')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403);
+    expect(res.body.error.code).toBe('AUTHZ_FORBIDDEN');
+    expect(JSON.stringify(res.body)).not.toContain('"B"');
+  });
+
   it('returns 403 AUTHZ_FORBIDDEN without an org payload for strangers and PENDING members', async () => {
     const store: OrgStore = { orgs: [], members: [], ids: 0 };
     seedOrg(store, { id: 'org_a', name: 'Secret Org', slug: 'secret-org' });
