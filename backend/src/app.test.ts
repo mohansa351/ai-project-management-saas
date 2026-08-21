@@ -4,6 +4,7 @@ import { createApp } from './app.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { dummyOrganizationController } from './controllers/organizationController.js';
+import { dummyProjectController } from './controllers/projectController.js';
 import { AppError } from './lib/http/appError.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestId.js';
@@ -37,6 +38,7 @@ function healthApp(readiness: Readiness = okReadiness) {
     healthController: new HealthController(mockService(readiness)),
     authController: stubAuthController(),
     organizationController: dummyOrganizationController(),
+    projectController: dummyProjectController(),
   });
 }
 

@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { dummyOrganizationController } from './controllers/organizationController.js';
+import { dummyProjectController } from './controllers/projectController.js';
 import type { EmailProvider, EmailMessage } from './lib/email/emailProvider.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from './lib/http/authErrors.js';
 import { AppError } from './lib/http/appError.js';
@@ -259,6 +260,7 @@ async function buildHarness(
       healthController: mockHealth(),
       authController,
       organizationController: dummyOrganizationController(),
+      projectController: dummyProjectController(),
       authRateLimit,
     }),
     user,
@@ -525,6 +527,7 @@ describe('POST /api/v1/auth/reset-password', () => {
       healthController: mockHealth(),
       authController,
       organizationController: dummyOrganizationController(),
+      projectController: dummyProjectController(),
     });
 
     const first = await request(app)
@@ -605,6 +608,7 @@ describe('POST /api/v1/auth/reset-password', () => {
       healthController: mockHealth(),
       authController,
       organizationController: dummyOrganizationController(),
+      projectController: dummyProjectController(),
     });
 
     const [first, second] = await Promise.all([

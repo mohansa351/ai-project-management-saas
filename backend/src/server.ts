@@ -3,6 +3,7 @@ import { createApp } from './app.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { OrganizationController } from './controllers/organizationController.js';
+import { ProjectController } from './controllers/projectController.js';
 import { createEmailProvider } from './lib/email/emailProvider.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
@@ -17,6 +18,8 @@ import { RefreshTokenRepository } from './repositories/refreshTokenRepository.js
 import { OrganizationInviteRepository } from './repositories/organizationInviteRepository.js';
 import { OrganizationMemberRepository } from './repositories/organizationMemberRepository.js';
 import { OrganizationRepository } from './repositories/organizationRepository.js';
+import { ProjectMemberRepository } from './repositories/projectMemberRepository.js';
+import { ProjectRepository } from './repositories/projectRepository.js';
 import { UserRepository } from './repositories/userRepository.js';
 import { AuthService } from './services/authService.js';
 import { EmailVerificationService } from './services/emailVerificationService.js';
@@ -24,6 +27,7 @@ import { HealthService } from './services/healthService.js';
 import { OrganizationInviteService } from './services/organizationInviteService.js';
 import { OrganizationMemberService } from './services/organizationMemberService.js';
 import { OrganizationService } from './services/organizationService.js';
+import { ProjectService } from './services/projectService.js';
 import { PasswordResetService } from './services/passwordResetService.js';
 
 const healthController = new HealthController(
@@ -71,6 +75,17 @@ const authController = new AuthController(authService, emailVerificationService,
 const organizationMemberRepository = new OrganizationMemberRepository(prisma);
 const organizationRepository = new OrganizationRepository(prisma);
 const organizationInviteRepository = new OrganizationInviteRepository(prisma);
+const projectRepository = new ProjectRepository(prisma);
+const projectMemberRepository = new ProjectMemberRepository(prisma);
+const projectController = new ProjectController(
+  new ProjectService(
+    projectRepository,
+    projectMemberRepository,
+    organizationRepository,
+    organizationMemberRepository,
+    prisma,
+  ),
+);
 const organizationController = new OrganizationController(
   new OrganizationService(organizationRepository, organizationMemberRepository, prisma),
   new OrganizationInviteService(
@@ -92,6 +107,7 @@ const app = createApp({
   healthController,
   authController,
   organizationController,
+  projectController,
   authRateLimit: env.NODE_ENV === 'test' ? undefined : createAuthRateLimit(redis),
   requireAccessToken: createRequireAccessToken(userRepository),
   requireOrganizationContext: createRequireOrganizationContext({

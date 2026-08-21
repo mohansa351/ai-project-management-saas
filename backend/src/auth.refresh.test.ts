@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { dummyOrganizationController } from './controllers/organizationController.js';
+import { dummyProjectController } from './controllers/projectController.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from './lib/http/authErrors.js';
 import { hashToken } from './lib/token.js';
 import type { EmailVerificationTokenRepository } from './repositories/emailVerificationTokenRepository.js';
@@ -204,6 +205,7 @@ function refreshApp(user: User | null, store: Store, casCount = 1) {
       healthController: mockHealth(),
       authController,
       organizationController: dummyOrganizationController(),
+      projectController: dummyProjectController(),
     }),
     store,
     refreshTokenRepository,

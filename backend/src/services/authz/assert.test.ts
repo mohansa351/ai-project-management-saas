@@ -1,7 +1,8 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import type { Organization, OrganizationMember } from '@prisma/client';
+import type { Organization, OrganizationMember, Project, ProjectMember } from '@prisma/client';
 import { AppError } from '../../lib/http/appError.js';
 import { AUTHZ_FORBIDDEN_MESSAGE, ORGANIZATION_NOT_FOUND_MESSAGE } from '../../lib/http/orgErrors.js';
+import { PROJECT_NOT_FOUND_MESSAGE } from '../../lib/http/projectErrors.js';
 import {
   assertOrgMember,
   assertPermission,
@@ -20,6 +21,21 @@ const liveOrg: Organization = {
   deletedAt: null,
 };
 
+const liveProject: Project = {
+  id: 'proj_1',
+  organizationId: 'org_a',
+  name: 'Website',
+  description: null,
+  status: 'ACTIVE',
+  priority: 'MEDIUM',
+  startDate: null,
+  dueDate: null,
+  ownerId: 'user_1',
+  createdAt: now,
+  updatedAt: now,
+  deletedAt: null,
+};
+
 function member(role: OrganizationMember['role'], status: OrganizationMember['status']): OrganizationMember {
   return {
     id: 'mem_1',
@@ -32,9 +48,21 @@ function member(role: OrganizationMember['role'], status: OrganizationMember['st
   };
 }
 
+function projectMember(): ProjectMember {
+  return {
+    id: 'pm_1',
+    projectId: 'proj_1',
+    userId: 'user_1',
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 function repos(options: {
   organization?: Organization | null;
   member?: OrganizationMember | null;
+  project?: Project | null;
+  projectMember?: ProjectMember | null;
 }) {
   return {
     organizationRepository: {
@@ -42,6 +70,12 @@ function repos(options: {
     },
     organizationMemberRepository: {
       findActiveByOrgAndUser: jest.fn(async () => options.member ?? null),
+    },
+    projectRepository: {
+      findLiveById: jest.fn(async () => options.project ?? null),
+    },
+    projectMemberRepository: {
+      findByProjectAndUser: jest.fn(async () => options.projectMember ?? null),
     },
   };
 }
@@ -108,10 +142,62 @@ describe('assertSuperAdmin', () => {
 });
 
 describe('assertProjectMember', () => {
-  it('stubs Epic 4 with AUTHZ_FORBIDDEN', async () => {
-    await expect(assertProjectMember({ userId: 'user_1', projectId: 'proj_1' })).rejects.toMatchObject({
-      code: 'AUTHZ_FORBIDDEN',
-      statusCode: 403,
+  it('allows ORG_ADMIN without a ProjectMember row', async () => {
+    const result = await assertProjectMember(
+      repos({
+        organization: liveOrg,
+        member: member('ORG_ADMIN', 'ACTIVE'),
+        project: liveProject,
+        projectMember: null,
+      }),
+      'user_1',
+      'proj_1',
+    );
+    expect(result.project.id).toBe('proj_1');
+    expect(result.projectMember).toBeNull();
+  });
+
+  it('allows PROJECT_MANAGER with a ProjectMember row', async () => {
+    const row = projectMember();
+    const result = await assertProjectMember(
+      repos({
+        organization: liveOrg,
+        member: member('PROJECT_MANAGER', 'ACTIVE'),
+        project: liveProject,
+        projectMember: row,
+      }),
+      'user_1',
+      'proj_1',
+    );
+    expect(result.projectMember?.id).toBe(row.id);
+  });
+
+  it('forbids PROJECT_MANAGER without ProjectMember', async () => {
+    await expect(
+      assertProjectMember(
+        repos({
+          organization: liveOrg,
+          member: member('PROJECT_MANAGER', 'ACTIVE'),
+          project: liveProject,
+          projectMember: null,
+        }),
+        'user_1',
+        'proj_1',
+      ),
+    ).rejects.toMatchObject({ code: 'AUTHZ_FORBIDDEN', statusCode: 403 });
+  });
+
+  it('throws 404 NOT_FOUND for missing or soft-deleted projects before membership', async () => {
+    const deps = repos({
+      organization: liveOrg,
+      member: member('ORG_ADMIN', 'ACTIVE'),
+      project: null,
     });
+    await expect(assertProjectMember(deps, 'user_1', 'missing')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      statusCode: 404,
+      message: PROJECT_NOT_FOUND_MESSAGE,
+    });
+    expect(deps.organizationRepository.findLiveById).not.toHaveBeenCalled();
   });
 });

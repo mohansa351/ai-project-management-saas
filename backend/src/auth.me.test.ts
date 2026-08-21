@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { dummyOrganizationController } from './controllers/organizationController.js';
+import { dummyProjectController } from './controllers/projectController.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from './lib/http/authErrors.js';
 import { signAccessToken } from './lib/jwt.js';
 import { createRequireAccessToken } from './middleware/requireAccessToken.js';
@@ -83,6 +84,7 @@ function meApp(user: User | null) {
     } as unknown as HealthService),
     authController,
     organizationController: dummyOrganizationController(),
+    projectController: dummyProjectController(),
     requireAccessToken: createRequireAccessToken(userRepository),
   });
 }

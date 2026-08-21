@@ -8,6 +8,7 @@ import { env } from './config/env.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { dummyOrganizationController } from './controllers/organizationController.js';
+import { dummyProjectController } from './controllers/projectController.js';
 import { AppError } from './lib/http/appError.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from './lib/http/authErrors.js';
 import { signAccessToken } from './lib/jwt.js';
@@ -265,6 +266,7 @@ async function buildHarness(
       healthController: mockHealth(),
       authController,
       organizationController: dummyOrganizationController(),
+      projectController: dummyProjectController(),
       authRateLimit,
       requireAccessToken: createRequireAccessToken(userRepository),
     }),
@@ -433,6 +435,7 @@ describe('POST /api/v1/auth/change-password', () => {
       healthController: mockHealth(),
       authController,
       organizationController: dummyOrganizationController(),
+      projectController: dummyProjectController(),
       requireAccessToken: createRequireAccessToken(userRepository),
     });
 
@@ -681,6 +684,7 @@ describe('POST /api/v1/auth/change-password', () => {
       healthController: mockHealth(),
       authController,
       organizationController: dummyOrganizationController(),
+      projectController: dummyProjectController(),
       requireAccessToken: createRequireAccessToken(userRepository),
     });
 

@@ -8,6 +8,7 @@ import { env } from './config/env.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { dummyOrganizationController } from './controllers/organizationController.js';
+import { dummyProjectController } from './controllers/projectController.js';
 import { AppError } from './lib/http/appError.js';
 import { hashPassword } from './lib/password.js';
 import { hashToken } from './lib/token.js';
@@ -117,6 +118,7 @@ function sessionApp(
       healthController: mockHealth(),
       authController,
       organizationController: dummyOrganizationController(),
+      projectController: dummyProjectController(),
       authRateLimit,
     }),
     refreshMocks,

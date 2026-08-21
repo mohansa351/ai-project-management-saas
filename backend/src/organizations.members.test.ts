@@ -11,6 +11,7 @@ import { createApp } from './app.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { OrganizationController } from './controllers/organizationController.js';
+import { dummyProjectController } from './controllers/projectController.js';
 import type { EmailProvider } from './lib/email/emailProvider.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from './lib/http/authErrors.js';
 import {
@@ -376,6 +377,7 @@ function memberApp(store: MemberStore) {
           prisma,
         ),
       ),
+      projectController: dummyProjectController(),
       requireAccessToken: createRequireAccessToken(userRepository),
       requireOrganizationContext: createRequireOrganizationContext({
         organizationRepository: new OrganizationRepository(prisma),

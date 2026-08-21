@@ -12,6 +12,7 @@ import { env } from './config/env.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { OrganizationController } from './controllers/organizationController.js';
+import { dummyProjectController } from './controllers/projectController.js';
 import type { EmailProvider } from './lib/email/emailProvider.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from './lib/http/authErrors.js';
 import {
@@ -380,6 +381,7 @@ function inviteApp(store: InviteStore, send: EmailProvider['send'] = jest.fn(asy
           prisma,
         ),
       ),
+      projectController: dummyProjectController(),
       requireAccessToken: createRequireAccessToken(userRepository),
     }),
   };

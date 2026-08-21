@@ -6,6 +6,7 @@ import { createApp } from './app.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { dummyOrganizationController, OrganizationController } from './controllers/organizationController.js';
+import { dummyProjectController } from './controllers/projectController.js';
 import type { EmailProvider } from './lib/email/emailProvider.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from './lib/http/authErrors.js';
 import { success } from './lib/http/envelope.js';
@@ -218,6 +219,7 @@ function contextApp(store: Store) {
           prisma,
         ),
       ),
+      projectController: dummyProjectController(),
       requireAccessToken,
       requireOrganizationContext,
     }),
@@ -473,6 +475,7 @@ describe('organization context header', () => {
       } as unknown as HealthService),
       authController: stubAuthController(),
       organizationController: dummyOrganizationController(),
+      projectController: dummyProjectController(),
     });
     const res = await request(app).get('/api/v1/health').expect(200);
     expect(res.body.success).toBe(true);

@@ -6,6 +6,7 @@ import { env } from './config/env.js';
 import type { AuthController } from './controllers/authController.js';
 import type { HealthController } from './controllers/healthController.js';
 import type { OrganizationController } from './controllers/organizationController.js';
+import type { ProjectController } from './controllers/projectController.js';
 import { AppError } from './lib/http/appError.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestId.js';
@@ -15,6 +16,7 @@ export type AppControllers = {
   healthController: HealthController;
   authController: AuthController;
   organizationController: OrganizationController;
+  projectController: ProjectController;
   authRateLimit?: RequestHandler;
   requireAccessToken?: RequestHandler;
   requireOrganizationContext?: RequestHandler;
@@ -24,6 +26,7 @@ export function createApp({
   healthController,
   authController,
   organizationController,
+  projectController,
   authRateLimit,
   requireAccessToken,
   requireOrganizationContext,
@@ -49,6 +52,7 @@ export function createApp({
       healthController,
       authController,
       organizationController,
+      projectController,
       authRateLimit,
       requireAccessToken,
       requireOrganizationContext,

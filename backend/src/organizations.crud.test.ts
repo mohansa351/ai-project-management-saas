@@ -5,6 +5,7 @@ import { createApp } from './app.js';
 import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { OrganizationController } from './controllers/organizationController.js';
+import { dummyProjectController } from './controllers/projectController.js';
 import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from './lib/http/authErrors.js';
 import { AUTHZ_FORBIDDEN_MESSAGE, ORGANIZATION_NOT_FOUND_MESSAGE } from './lib/http/orgErrors.js';
 import { signAccessToken } from './lib/jwt.js';
@@ -336,6 +337,7 @@ function orgApp(user: User | null, store: OrgStore) {
           prisma,
         ),
       ),
+      projectController: dummyProjectController(),
       requireAccessToken: createRequireAccessToken(userRepository),
     }),
   };
