@@ -5,6 +5,7 @@ import { AUTH_SESSION_UNAUTHORIZED_MESSAGE } from '../lib/http/authErrors.js';
 import { ORG_CONTEXT_REQUIRED_MESSAGE } from '../lib/http/orgErrors.js';
 import { success } from '../lib/http/envelope.js';
 import type { PublicUser } from '../services/authService.js';
+import type { ProjectMemberService } from '../services/projectMemberService.js';
 import type { ProjectService } from '../services/projectService.js';
 
 const projectStatusSchema = z.enum(['PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'ARCHIVED']);
@@ -63,6 +64,15 @@ const listQuerySchema = z.object({
   status: projectStatusSchema.optional(),
 });
 
+const memberListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+const addMemberBodySchema = z.object({
+  userId: z.string().trim().min(1),
+});
+
 function sessionUnauthorized(): AppError {
   return new AppError('AUTH_UNAUTHORIZED', AUTH_SESSION_UNAUTHORIZED_MESSAGE, 401);
 }
@@ -92,8 +102,16 @@ function routeId(req: Request): string {
   return typeof id === 'string' ? id : '';
 }
 
+function routeMemberId(req: Request): string {
+  const id = req.params.memberId;
+  return typeof id === 'string' ? id : '';
+}
+
 export class ProjectController {
-  constructor(private readonly projectService: ProjectService) {}
+  constructor(
+    private readonly projectService: ProjectService,
+    private readonly projectMemberService: ProjectMemberService,
+  ) {}
 
   create = async (req: Request, res: Response): Promise<void> => {
     const userId = requireUser(req).id;
@@ -140,6 +158,32 @@ export class ProjectController {
     const project = await this.projectService.softDelete(userId, routeId(req));
     res.status(200).json(success({ project }));
   };
+
+  listMembers = async (req: Request, res: Response): Promise<void> => {
+    const userId = requireUser(req).id;
+    const parsed = memberListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', 'Validation failed', 400, parsed.error.flatten().fieldErrors);
+    }
+    const result = await this.projectMemberService.list(userId, routeId(req), parsed.data);
+    res.status(200).json(success({ members: result.members }, result.meta));
+  };
+
+  addMember = async (req: Request, res: Response): Promise<void> => {
+    const userId = requireUser(req).id;
+    const parsed = addMemberBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', 'Validation failed', 400, parsed.error.flatten().fieldErrors);
+    }
+    const member = await this.projectMemberService.add(userId, routeId(req), parsed.data.userId);
+    res.status(201).json(success({ member }));
+  };
+
+  removeMember = async (req: Request, res: Response): Promise<void> => {
+    const userId = requireUser(req).id;
+    const member = await this.projectMemberService.remove(userId, routeId(req), routeMemberId(req));
+    res.status(200).json(success({ member }));
+  };
 }
 
 export function dummyProjectController(): ProjectController {
@@ -149,6 +193,9 @@ export function dummyProjectController(): ProjectController {
     getById: unusedProjectHandler,
     patch: unusedProjectHandler,
     remove: unusedProjectHandler,
+    listMembers: unusedProjectHandler,
+    addMember: unusedProjectHandler,
+    removeMember: unusedProjectHandler,
   } as unknown as ProjectController;
 }
 

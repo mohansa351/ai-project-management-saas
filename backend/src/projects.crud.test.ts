@@ -28,6 +28,7 @@ import { ProjectRepository } from './repositories/projectRepository.js';
 import { projectSoftDeleteCascade } from './repositories/projectSoftDeleteCascade.js';
 import type { UserRepository } from './repositories/userRepository.js';
 import type { HealthService } from './services/healthService.js';
+import { ProjectMemberService } from './services/projectMemberService.js';
 import { ProjectService } from './services/projectService.js';
 
 const now = new Date('2026-08-21T00:00:00.000Z');
@@ -360,6 +361,12 @@ function projectApp(user: User | null, store: Store) {
           organizationRepository,
           organizationMemberRepository,
           prisma,
+        ),
+        new ProjectMemberService(
+          new ProjectRepository(prisma),
+          new ProjectMemberRepository(prisma),
+          organizationRepository,
+          organizationMemberRepository,
         ),
       ),
       requireAccessToken: createRequireAccessToken(userRepository),

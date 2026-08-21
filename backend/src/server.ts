@@ -4,6 +4,7 @@ import { AuthController } from './controllers/authController.js';
 import { HealthController } from './controllers/healthController.js';
 import { OrganizationController } from './controllers/organizationController.js';
 import { ProjectController } from './controllers/projectController.js';
+import { ProjectMemberService } from './services/projectMemberService.js';
 import { createEmailProvider } from './lib/email/emailProvider.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
@@ -84,6 +85,12 @@ const projectController = new ProjectController(
     organizationRepository,
     organizationMemberRepository,
     prisma,
+  ),
+  new ProjectMemberService(
+    projectRepository,
+    projectMemberRepository,
+    organizationRepository,
+    organizationMemberRepository,
   ),
 );
 const organizationController = new OrganizationController(

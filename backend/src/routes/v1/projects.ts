@@ -11,6 +11,9 @@ export function createProjectsRouter(
   const requireOrgContext = requireOrganizationContext ?? ((_req, _res, next) => next());
   router.post('/', requireAuth, requireOrgContext, projectController.create);
   router.get('/', requireAuth, requireOrgContext, projectController.list);
+  router.get('/:id/members', requireAuth, projectController.listMembers);
+  router.post('/:id/members', requireAuth, projectController.addMember);
+  router.delete('/:id/members/:memberId', requireAuth, projectController.removeMember);
   router.get('/:id', requireAuth, projectController.getById);
   router.patch('/:id', requireAuth, projectController.patch);
   router.delete('/:id', requireAuth, projectController.remove);
